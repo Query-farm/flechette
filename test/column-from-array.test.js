@@ -195,6 +195,22 @@ describe('columnFromArray', () => {
     const ns = [0, 8640000, -8640000];
     const nsCol = columnFromArray(ns, timestamp(TimeUnit.NANOSECOND), { useBigIntTimestamp: true });
     expect(Array.from(nsCol)).toStrictEqual(ns.map(t => BigInt(t) * 1000000n));
+
+    // bigint inputs at sub-millisecond units must be taken as already in the
+    // column's native unit (symmetric with useBigIntTimestamp extraction).
+    // Previously these threw "Invalid mix of BigInt and other type" because
+    // toTimestamp applied number arithmetic unconditionally.
+    const nsBigInt = [1700000000000000000n, 1700000000000000001n, -1n];
+    const nsBiCol = columnFromArray(nsBigInt, timestamp(TimeUnit.NANOSECOND), { useBigIntTimestamp: true });
+    expect(Array.from(nsBiCol)).toStrictEqual(nsBigInt);
+
+    const usBigInt = [1700000000000000n, -2n];
+    const usBiCol = columnFromArray(usBigInt, timestamp(TimeUnit.MICROSECOND), { useBigIntTimestamp: true });
+    expect(Array.from(usBiCol)).toStrictEqual(usBigInt);
+
+    const sBigInt = [1700000000n, 0n];
+    const sBiCol = columnFromArray(sBigInt, timestamp(TimeUnit.SECOND), { useBigIntTimestamp: true });
+    expect(Array.from(sBiCol)).toStrictEqual(sBigInt);
   });
 
   it('builds interval year-month columns', () => {

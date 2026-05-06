@@ -50,14 +50,22 @@ export function toDateDay(value) {
 
 /**
  * Return a timestamp conversion method for the given time unit.
+ * Number inputs are interpreted as milliseconds since the epoch (matching
+ * JavaScript Date semantics) and converted to the column's native unit.
+ * BigInt inputs are assumed to already be in the column's native unit,
+ * symmetric with the `useBigIntTimestamp` extraction option, so they
+ * round-trip without precision loss for sub-millisecond resolutions.
  * @param {TimeUnit_} unit The time unit.
- * @returns {(value: number) => bigint} The conversion method.
+ * @returns {(value: number | bigint) => bigint} The conversion method.
  */
 export function toTimestamp(unit) {
-  return unit === TimeUnit.SECOND ? value => toBigInt(value / 1e3)
-    : unit === TimeUnit.MILLISECOND ? toBigInt
-    : unit === TimeUnit.MICROSECOND ? value => toBigInt(value * 1e3)
-    : value => toBigInt(value * 1e6);
+  return unit === TimeUnit.SECOND
+    ? value => typeof value === 'bigint' ? value : toBigInt(value / 1e3)
+    : unit === TimeUnit.MILLISECOND
+    ? toBigInt
+    : unit === TimeUnit.MICROSECOND
+    ? value => typeof value === 'bigint' ? value : toBigInt(value * 1e3)
+    : value => typeof value === 'bigint' ? value : toBigInt(value * 1e6);
 }
 
 /**
