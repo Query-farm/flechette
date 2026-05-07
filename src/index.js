@@ -48,6 +48,7 @@ export { batchType } from './batch-type.js';
 export { getCompressionCodec, setCompressionCodec } from './compression.js';
 export { tableFromIPC } from './decode/table-from-ipc.js';
 export { tableToIPC } from './encode/table-to-ipc.js';
+export { tablesToIPC, concatTables } from './encode/tables-to-ipc.js';
 export { tableFromArrays } from './build/table-from-arrays.js';
 export { tableFromColumns } from './build/table-from-columns.js';
 export { columnFromArray } from './build/column-from-array.js';
