@@ -112,6 +112,17 @@ export class Builder {
     addObject(numFields: number, addFields?: (tableBuilder: ReturnType<typeof objectBuilder>) => void): number;
     /**
      * Add a flatbuffer vector (list).
+     *
+     * Empty vectors emit an int32 length-zero prefix and return a non-zero
+     * offset, so callers using `addOffset(field, off, defaultValue=0)` keep
+     * the field present in the vtable. Apache Arrow C++ rejects flatbuffers
+     * whose `Schema.fields` is null, which is what happened previously when
+     * `if (!n) return 0;` collapsed empty fields into "field absent".
+     * Returning a real offset for an empty vector matches the wire format
+     * arrow-js (and pyarrow) produce, costs 4 bytes per empty vector, and
+     * leaves decoders unchanged (an absent vs. present-empty vector both
+     * decode to a zero-length array).
+     *
      * @template T
      * @param {T[]} items An array of items to write.
      * @param {number} itemSize The size in bytes of a serialized item.
