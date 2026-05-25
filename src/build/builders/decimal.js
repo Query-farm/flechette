@@ -1,4 +1,5 @@
 import { toDecimal } from '../../util/numbers.js';
+import { arrayTypeOf } from '../../util/arrays.js';
 import { buffer } from '../buffer.js';
 import { ValidityBuilder } from './validity.js';
 
@@ -13,7 +14,7 @@ export class DecimalBuilder extends ValidityBuilder {
   }
 
   init() {
-    this.values = buffer(this.type.values);
+    this.values = buffer(arrayTypeOf(this.type));
     return super.init();
   }
 

@@ -5,7 +5,7 @@
 import { batchType } from '../batch-type.js';
 import { IntervalUnit, Type } from '../constants.js';
 import { invalidDataType } from '../data-types.js';
-import { isInt64ArrayType } from '../util/arrays.js';
+import { arrayTypeOf, isInt64ArrayType } from '../util/arrays.js';
 import { toBigInt, toDateDay, toDecimal32, toFloat16, toTimestamp } from '../util/numbers.js';
 import { BinaryBuilder } from './builders/binary.js';
 import { BoolBuilder } from './builders/bool.js';
@@ -52,7 +52,7 @@ export function builder(type, ctx = builderContext()) {
     case Type.Int:
     case Type.Time:
     case Type.Duration:
-      return isInt64ArrayType(type.values)
+      return isInt64ArrayType(arrayTypeOf(type))
         ? new Int64Builder(type, ctx)
         : new DirectBuilder(type, ctx);
     case Type.Float:

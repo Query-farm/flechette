@@ -1,4 +1,5 @@
 import { toBigInt } from '../../util/numbers.js';
+import { arrayTypeOf } from '../../util/arrays.js';
 import { buffer } from '../buffer.js';
 import { ValidityBuilder } from './validity.js';
 
@@ -8,11 +9,11 @@ import { ValidityBuilder } from './validity.js';
 export class DirectBuilder extends ValidityBuilder {
   constructor(type, ctx) {
     super(type, ctx);
-    this.values = buffer(type.values);
+    this.values = buffer(arrayTypeOf(type));
   }
 
   init() {
-    this.values = buffer(this.type.values);
+    this.values = buffer(arrayTypeOf(this.type));
     return super.init();
   }
 

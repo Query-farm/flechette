@@ -94,7 +94,11 @@ function encodeFloat(builder, type) {
 function encodeInt(builder, type) {
   return builder.addObject(2, b => {
     b.addInt32(0, type.bitWidth, 0);
-    b.addInt8(1, +type.signed, 0);
+    // Accept a foreign (e.g. arrow-js) Int type object too: it spells the
+    // signedness flag `isSigned` rather than flechette's `signed`. Without the
+    // fallback, `+undefined` -> NaN -> 0 silently encodes signed ints as
+    // unsigned (e.g. Int32 surfaces as UINTEGER in DuckDB).
+    b.addInt8(1, +(type.signed ?? type.isSigned), 0);
   });
 }
 
