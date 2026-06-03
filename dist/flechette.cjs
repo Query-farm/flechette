@@ -500,6 +500,19 @@ function isInt64ArrayType(value) {
 }
 
 /**
+ * Resolve the backing typed-array constructor for a data type. Flechette's
+ * own types carry it as `values`; a foreign (e.g. arrow-js) type object spells
+ * it `ArrayType`. Falling back lets the builders accept either, so passing an
+ * arrow-js type to `columnFromArray` no longer silently allocates a Uint8Array
+ * (which corrupts the values).
+ * @param {*} type The data type.
+ * @returns {*} The typed-array constructor, or undefined.
+ */
+function arrayTypeOf(type) {
+  return type?.values ?? type?.ArrayType;
+}
+
+/**
  * Determine the correct index into an offset array for a given
  * full column row index. Assumes offset indices can be manipulated
  * as 32-bit signed integers.
@@ -4824,7 +4837,11 @@ function encodeFloat(builder, type) {
 function encodeInt(builder, type) {
   return builder.addObject(2, b => {
     b.addInt32(0, type.bitWidth, 0);
-    b.addInt8(1, +type.signed, 0);
+    // Accept a foreign (e.g. arrow-js) Int type object too: it spells the
+    // signedness flag `isSigned` rather than flechette's `signed`. Without the
+    // fallback, `+undefined` -> NaN -> 0 silently encodes signed ints as
+    // unsigned (e.g. Int32 surfaces as UINTEGER in DuckDB).
+    b.addInt8(1, +(type.signed ?? type.isSigned), 0);
   });
 }
 
@@ -6155,7 +6172,7 @@ class DecimalBuilder extends ValidityBuilder {
   }
 
   init() {
-    this.values = buffer(this.type.values);
+    this.values = buffer(arrayTypeOf(this.type));
     return super.init();
   }
 
@@ -6247,7 +6264,7 @@ class FixedSizeListBuilder extends ValidityBuilder {
  */
 class IntervalDayTimeBuilder extends ValidityBuilder {
   init() {
-    this.values = buffer(this.type.values);
+    this.values = buffer(arrayTypeOf(this.type));
     return super.init();
   }
 
@@ -6554,11 +6571,11 @@ class Utf8Builder extends BinaryBuilder {
 class DirectBuilder extends ValidityBuilder {
   constructor(type, ctx) {
     super(type, ctx);
-    this.values = buffer(type.values);
+    this.values = buffer(arrayTypeOf(type));
   }
 
   init() {
-    this.values = buffer(this.type.values);
+    this.values = buffer(arrayTypeOf(this.type));
     return super.init();
   }
 
@@ -6639,7 +6656,7 @@ function builder(type, ctx = builderContext()) {
     case Type.Int:
     case Type.Time:
     case Type.Duration:
-      return isInt64ArrayType(type.values)
+      return isInt64ArrayType(arrayTypeOf(type))
         ? new Int64Builder(type, ctx)
         : new DirectBuilder(type, ctx);
     case Type.Float:

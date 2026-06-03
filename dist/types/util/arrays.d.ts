@@ -42,6 +42,16 @@ export function isArray(value: any): value is (any[] | TypedArray);
  */
 export function isInt64ArrayType(value: any): value is Int64ArrayConstructor;
 /**
+ * Resolve the backing typed-array constructor for a data type. Flechette's
+ * own types carry it as `values`; a foreign (e.g. arrow-js) type object spells
+ * it `ArrayType`. Falling back lets the builders accept either, so passing an
+ * arrow-js type to `columnFromArray` no longer silently allocates a Uint8Array
+ * (which corrupts the values).
+ * @param {*} type The data type.
+ * @returns {*} The typed-array constructor, or undefined.
+ */
+export function arrayTypeOf(type: any): any;
+/**
  * Determine the correct index into an offset array for a given
  * full column row index. Assumes offset indices can be manipulated
  * as 32-bit signed integers.
