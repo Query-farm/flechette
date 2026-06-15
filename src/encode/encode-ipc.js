@@ -6,6 +6,7 @@ import { BodyCompressionMethod, EOS, MAGIC, MessageHeader } from '../constants.j
 import { Builder } from './builder.js';
 import { encodeDictionaryBatch } from './dictionary-batch.js';
 import { writeFooter } from './footer.js';
+import { encodeMetadata } from './metadata.js';
 import { encodeRecordBatch } from './record-batch.js';
 import { encodeSchema } from './schema.js';
 import { writeMessage } from './message.js';
@@ -65,12 +66,20 @@ export function encodeIPC(data, { sink, format = STREAM, codec } = {}) {
 
   // write record batch messages
   for (const batch of records) {
+    // Per-record-batch custom_metadata — Arrow IPC spec field 4 of the
+    // Message table. Encode the metadata BEFORE the record-batch header
+    // so writeMessage can finalize the message with both offsets in
+    // FlatBuffer-required tail-first ordering.
+    const batchMetadataOffset = batch?.metadata
+      ? encodeMetadata(builder, batch.metadata)
+      : 0;
     writeMessage(
       builder,
       MessageHeader.RecordBatch,
       encodeRecordBatch(builder, batch, compression),
       batch.byteLength,
-      recordBlocks
+      recordBlocks,
+      batchMetadataOffset
     );
     writeBuffers(builder, batch.buffers);
   }

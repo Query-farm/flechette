@@ -1,5 +1,13 @@
 # Flechette <a href="https://idl.uw.edu/flechette"><img align="right" src="https://raw.githubusercontent.com/uwdata/flechette/main/docs/assets/logo.svg" height="38"></img></a>
 
+> **`@query-farm/flechette`** is a fork of [`@uwdata/flechette`](https://github.com/uwdata/flechette)
+> maintained by [Query Farm](https://query.farm) for the Vector Gateway Interface (VGI).
+> It adds per-record-batch `custom_metadata` encode/decode, multi-batch IPC stream
+> encoding (`tablesToIPC` / `concatTables`), and foreign Arrow type support in the
+> encoder. See [`NOTICE`](./NOTICE) for the full list of modifications. All upstream
+> credit belongs to the UW Interactive Data Lab; distributed under the same
+> BSD 3-Clause License.
+
 **Flechette** is a JavaScript library for reading and writing the [Apache Arrow](https://arrow.apache.org/) columnar in-memory data format. It provides a faster, lighter, zero-dependency alternative to the [Arrow JS reference implementation](https://github.com/apache/arrow/tree/main/js).
 
 Flechette performs fast extraction and encoding of data columns in the Arrow binary IPC format, supporting ingestion of Arrow data from sources such as [DuckDB](https://duckdb.org/) and Arrow use in JavaScript data analysis tools like [Arquero](https://github.com/uwdata/arquero), [Mosaic](https://github.com/uwdata/mosaic), [Observable Plot](https://observablehq.com/plot/), and [Vega-Lite](https://vega.github.io/vega-lite/).

@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { tableFromIPC as arrowJSTableFromIPC } from 'apache-arrow';
 import {
   columnFromArray,
-  field,
   int32,
   utf8,
   tableFromColumns,

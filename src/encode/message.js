@@ -11,15 +11,18 @@ import { MessageHeader, Version } from '../constants.js';
  * @param {number} headerOffset
  * @param {number} bodyLength
  * @param {Block[]} [blocks]
+ * @param {number} [metadataOffset] FlatBuffer offset to a `[KeyValue]` vector
+ *  for the message-level `custom_metadata` field. Pass 0 (or omit) to
+ *  encode no metadata, matching the pre-feature behaviour.
  */
-export function writeMessage(builder, headerType, headerOffset, bodyLength, blocks) {
+export function writeMessage(builder, headerType, headerOffset, bodyLength, blocks, metadataOffset = 0) {
   builder.finish(
     builder.addObject(5, b => {
       b.addInt16(0, Version.V5, Version.V1);
       b.addInt8(1, headerType, MessageHeader.NONE);
       b.addOffset(2, headerOffset, 0);
       b.addInt64(3, bodyLength, 0);
-      // NOT SUPPORTED: 4, message-level metadata
+      b.addOffset(4, metadataOffset, 0);
     })
   );
 

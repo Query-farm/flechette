@@ -118,7 +118,25 @@ export function createTable(data, options = {}) {
     processDict(dictionaries[dictIdx++]);
   }
 
-  return new Table(schema, cols.map(c => c.done()), options.useProxy);
+  const table = new Table(schema, cols.map(c => c.done()), options.useProxy);
+  // Surface per-record-batch custom_metadata for the common single-batch
+  // case (vgi-rpc reads it from the EXCEPTION/log/result batch metadata).
+  // For multi-batch tables, keep the full positional array under a
+  // separate property; first-batch metadata stays addressable via the
+  // shortcut so callers that don't care about batch boundaries (the
+  // VgiBatch facade) don't need to know which form is set.
+  if (records.length > 0) {
+    const firstMd = records[0].metadata;
+    if (firstMd && firstMd.size > 0) {
+      // @ts-ignore — extending Table with vgi-rpc-friendly shortcut
+      table._vgiRecordMetadata = firstMd;
+    }
+    if (records.length > 1) {
+      // @ts-ignore
+      table._vgiRecordMetadataPerBatch = records.map(r => r.metadata ?? null);
+    }
+  }
+  return table;
 }
 
 /**

@@ -5,6 +5,7 @@ import { MessageHeader, Version } from '../constants.js';
 import { keyFor } from '../util/objects.js';
 import { SIZEOF_INT, readInt16, readInt32, readInt64, readObject, readOffset, readUint8 } from '../util/read.js';
 import { decodeDictionaryBatch } from './dictionary-batch.js';
+import { decodeMetadata } from './metadata.js';
 import { decodeRecordBatch } from './record-batch.js';
 import { decodeSchema } from './schema.js';
 
@@ -49,6 +50,7 @@ export function decodeMessage(buf, index) {
   //  6: headerType
   //  8: headerIndex
   // 10: bodyLength
+  // 12: custom_metadata ([KeyValue])
   const get = readObject(head, 0);
   const version = /** @type {Version_} */
     (get(4, readInt16, Version.V1));
@@ -56,6 +58,7 @@ export function decodeMessage(buf, index) {
     (get(6, readUint8, MessageHeader.NONE));
   const offset = get(8, readOffset, 0);
   const bodyLength = get(10, readInt64, 0);
+  const customMetadata = get(12, decodeMetadata);
   let content;
 
   if (offset) {
@@ -66,6 +69,15 @@ export function decodeMessage(buf, index) {
       : null;
     if (!decoder) throw new Error(invalidMessageType(type));
     content = decoder(head, offset, version);
+    // Surface per-message custom_metadata on the decoded content so
+    // consumers (vgi-rpc reads per-record-batch metadata for log_level /
+    // log_message / server_id / request_id) can retrieve it without
+    // re-parsing the FlatBuffer. Schema messages already have their own
+    // metadata field — only attach for record / dictionary batches.
+    if (customMetadata && (type === MessageHeader.RecordBatch || type === MessageHeader.DictionaryBatch)) {
+      // @ts-ignore
+      content.metadata = customMetadata;
+    }
 
     // extract message body
     if (bodyLength > 0) {

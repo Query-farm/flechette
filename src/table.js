@@ -45,6 +45,22 @@ export class Table {
      */
     this.factory = useProxy ? proxyFactory : objectFactory;
 
+    /**
+     * First record batch's custom_metadata, surfaced as a shortcut for the
+     * common single-batch wire pattern. Set by `tableFromIPC` when the batch
+     * carries metadata, and may be set by callers before `tablesToIPC` to
+     * attach per-table metadata. Undefined when no batch metadata is present.
+     * @type {Map<string, string> | undefined}
+     */
+    this._vgiRecordMetadata = undefined;
+    /**
+     * Positional per-batch custom_metadata for multi-batch tables (entry `i`
+     * is batch `i`'s metadata, or null). Set by `tableFromIPC` when a table
+     * decodes more than one record batch.
+     * @type {(Map<string, string> | null)[] | undefined}
+     */
+    this._vgiRecordMetadataPerBatch = undefined;
+
     // lazily created row object generators
     const gen = [];
 

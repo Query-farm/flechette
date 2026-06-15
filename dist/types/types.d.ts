@@ -242,6 +242,12 @@ export interface RecordBatch {
     body?: Uint8Array;
     buffers?: Uint8Array[];
     byteLength?: number;
+    /**
+     * Per-record-batch custom_metadata (Arrow IPC Message field 4), decoded
+     * as key/value string pairs. Populated by the decoder when the batch
+     * carries metadata; undefined or null otherwise.
+     */
+    metadata?: Map<string, string> | null;
 }
 /**
  * Optional compression for the memory buffers constituting IPC message

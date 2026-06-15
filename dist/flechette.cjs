@@ -3022,6 +3022,22 @@ class Table {
      */
     this.factory = useProxy ? proxyFactory : objectFactory;
 
+    /**
+     * First record batch's custom_metadata, surfaced as a shortcut for the
+     * common single-batch wire pattern. Set by `tableFromIPC` when the batch
+     * carries metadata, and may be set by callers before `tablesToIPC` to
+     * attach per-table metadata. Undefined when no batch metadata is present.
+     * @type {Map<string, string> | undefined}
+     */
+    this._vgiRecordMetadata = undefined;
+    /**
+     * Positional per-batch custom_metadata for multi-batch tables (entry `i`
+     * is batch `i`'s metadata, or null). Set by `tableFromIPC` when a table
+     * decodes more than one record batch.
+     * @type {(Map<string, string> | null)[] | undefined}
+     */
+    this._vgiRecordMetadataPerBatch = undefined;
+
     // lazily created row object generators
     const gen = [];
 
@@ -3906,6 +3922,27 @@ function decodeDictionaryBatch(buf, index, version) {
 }
 
 /**
+ * @import { Metadata } from '../types.js'
+ */
+
+/**
+ * Decode custom metadata consisting of key-value string pairs.
+ * @param {Uint8Array} buf A byte buffer of binary Arrow IPC data
+ * @param {number} index The starting index in the byte buffer
+ * @returns {Metadata | null} The custom metadata map
+ */
+function decodeMetadata(buf, index) {
+  const entries = readVector(buf, index, 4, (buf, pos) => {
+    const get = readObject(buf, pos);
+    return /** @type {[string, string]} */ ([
+      get(4, readString), // 4: key (string)
+      get(6, readString)  // 6: key (string)
+    ]);
+  });
+  return entries.length ? new Map(entries) : null;
+}
+
+/**
  * @import { DataType, Field } from '../types.js'
  */
 
@@ -3998,27 +4035,6 @@ function decodeDataType(buf, index, typeId, children) {
   // case Type.Utf8View:
   // @ts-ignore
   return { typeId };
-}
-
-/**
- * @import { Metadata } from '../types.js'
- */
-
-/**
- * Decode custom metadata consisting of key-value string pairs.
- * @param {Uint8Array} buf A byte buffer of binary Arrow IPC data
- * @param {number} index The starting index in the byte buffer
- * @returns {Metadata | null} The custom metadata map
- */
-function decodeMetadata(buf, index) {
-  const entries = readVector(buf, index, 4, (buf, pos) => {
-    const get = readObject(buf, pos);
-    return /** @type {[string, string]} */ ([
-      get(4, readString), // 4: key (string)
-      get(6, readString)  // 6: key (string)
-    ]);
-  });
-  return entries.length ? new Map(entries) : null;
 }
 
 /**
@@ -4168,6 +4184,7 @@ function decodeMessage(buf, index) {
   //  6: headerType
   //  8: headerIndex
   // 10: bodyLength
+  // 12: custom_metadata ([KeyValue])
   const get = readObject(head, 0);
   const version = /** @type {Version_} */
     (get(4, readInt16, Version.V1));
@@ -4175,6 +4192,7 @@ function decodeMessage(buf, index) {
     (get(6, readUint8, MessageHeader.NONE));
   const offset = get(8, readOffset, 0);
   const bodyLength = get(10, readInt64, 0);
+  const customMetadata = get(12, decodeMetadata);
   let content;
 
   if (offset) {
@@ -4185,6 +4203,15 @@ function decodeMessage(buf, index) {
       : null;
     if (!decoder) throw new Error(invalidMessageType(type));
     content = decoder(head, offset, version);
+    // Surface per-message custom_metadata on the decoded content so
+    // consumers (vgi-rpc reads per-record-batch metadata for log_level /
+    // log_message / server_id / request_id) can retrieve it without
+    // re-parsing the FlatBuffer. Schema messages already have their own
+    // metadata field — only attach for record / dictionary batches.
+    if (customMetadata && (type === MessageHeader.RecordBatch || type === MessageHeader.DictionaryBatch)) {
+      // @ts-ignore
+      content.metadata = customMetadata;
+    }
 
     // extract message body
     if (bodyLength > 0) {
@@ -4454,7 +4481,25 @@ function createTable(data, options = {}) {
     processDict(dictionaries[dictIdx++]);
   }
 
-  return new Table(schema, cols.map(c => c.done()), options.useProxy);
+  const table = new Table(schema, cols.map(c => c.done()), options.useProxy);
+  // Surface per-record-batch custom_metadata for the common single-batch
+  // case (vgi-rpc reads it from the EXCEPTION/log/result batch metadata).
+  // For multi-batch tables, keep the full positional array under a
+  // separate property; first-batch metadata stays addressable via the
+  // shortcut so callers that don't care about batch boundaries (the
+  // VgiBatch facade) don't need to know which form is set.
+  if (records.length > 0) {
+    const firstMd = records[0].metadata;
+    if (firstMd && firstMd.size > 0) {
+      // @ts-ignore — extending Table with vgi-rpc-friendly shortcut
+      table._vgiRecordMetadata = firstMd;
+    }
+    if (records.length > 1) {
+      // @ts-ignore
+      table._vgiRecordMetadataPerBatch = records.map(r => r.metadata ?? null);
+    }
+  }
+  return table;
 }
 
 /**
@@ -4679,8 +4724,13 @@ function encodeRecordBatch(builder, batch, compression) {
   const variadicVector = builder.addVector(variadic, 8, 8,
     (builder, count) => builder.addInt64(count)
   );
+  // RecordBatch.length is the batch's row count. Normally derived from
+  // the first FieldNode's length, but a zero-field schema has no nodes —
+  // fall back to an explicit `batch.length` (vgi-rpc's metadata-only
+  // empty batch uses 0) so the FlatBuffer doesn't trip on `nodes[0]`.
+  const rowCount = nodes.length > 0 ? nodes[0].length : (batch.length ?? 0);
   return builder.addObject(5, b => {
-    b.addInt64(0, nodes[0].length, 0);
+    b.addInt64(0, rowCount, 0);
     b.addOffset(1, nodeVector, 0);
     b.addOffset(2, regionVector, 0);
     b.addOffset(3, encodeCompression(builder, compression), 0);
@@ -5026,15 +5076,18 @@ function encodeBlock(builder, { offset, metadataLength, bodyLength }) {
  * @param {number} headerOffset
  * @param {number} bodyLength
  * @param {Block[]} [blocks]
+ * @param {number} [metadataOffset] FlatBuffer offset to a `[KeyValue]` vector
+ *  for the message-level `custom_metadata` field. Pass 0 (or omit) to
+ *  encode no metadata, matching the pre-feature behaviour.
  */
-function writeMessage(builder, headerType, headerOffset, bodyLength, blocks) {
+function writeMessage(builder, headerType, headerOffset, bodyLength, blocks, metadataOffset = 0) {
   builder.finish(
     builder.addObject(5, b => {
       b.addInt16(0, Version.V5, Version.V1);
       b.addInt8(1, headerType, MessageHeader.NONE);
       b.addOffset(2, headerOffset, 0);
       b.addInt64(3, bodyLength, 0);
-      // NOT SUPPORTED: 4, message-level metadata
+      b.addOffset(4, metadataOffset, 0);
     })
   );
 
@@ -5177,12 +5230,20 @@ function encodeIPC(data, { sink, format = STREAM, codec } = {}) {
 
   // write record batch messages
   for (const batch of records) {
+    // Per-record-batch custom_metadata — Arrow IPC spec field 4 of the
+    // Message table. Encode the metadata BEFORE the record-batch header
+    // so writeMessage can finalize the message with both offsets in
+    // FlatBuffer-required tail-first ordering.
+    const batchMetadataOffset = batch?.metadata
+      ? encodeMetadata(builder, batch.metadata)
+      : 0;
     writeMessage(
       builder,
       MessageHeader.RecordBatch,
       encodeRecordBatch(builder, batch, compression),
       batch.byteLength,
-      recordBlocks
+      recordBlocks,
+      batchMetadataOffset
     );
     writeBuffers(builder, batch.buffers);
   }
@@ -5224,6 +5285,9 @@ function writeBuffers(builder, buffers) {
  * @param {Sink} [options.sink] IPC byte consumer.
  * @param {'stream' | 'file'} [options.format] Arrow stream or file format.
  * @param {CompressionType_ | null} [options.codec] Compression codec to apply.
+ * @param {(Map<string, string> | null | undefined)[]} [options.batchMetadata]
+ *  Positional per-record-batch custom_metadata; entry `i` is attached to the
+ *  `i`-th emitted record batch (Arrow IPC Message field 4).
  * @returns {Uint8Array | null} The generated bytes (for an in-memory sink)
  *  or null (if using a sink that writes bytes elsewhere).
  */
@@ -5244,8 +5308,121 @@ function tableToIPC(table, options) {
   const { dictionaries, idMap } = assembleDictionaryBatches(columns, codec);
   const records = assembleRecordBatches(columns, codec);
   const schema = assembleSchema(table.schema, idMap);
+
+  // Per-record-batch custom_metadata — Arrow IPC Message field 4. The
+  // caller threads in an array (indexed by batch position) via
+  // `options.batchMetadata`; encodeIPC attaches it during message
+  // emission. Absent / undefined entries encode as no metadata, matching
+  // the pre-feature behaviour for plain data batches.
+  const batchMetadata = options?.batchMetadata;
+  if (batchMetadata) {
+    // Synthesise empty record batches for metadata entries past
+    // `records.length`. Two shapes flow here:
+    //  - zero-field schema (vgi-rpc EXCEPTION/log batch): no FieldNodes,
+    //    no regions. Just metadata.
+    //  - schema with fields but no actual column data (vgi-rpc result
+    //    schema receiving an error path): emit one FieldNode per field
+    //    with length=0/nullCount=0 + the validity/offset/value regions
+    //    each type would consume. Without these the wire batch's body
+    //    layout disagrees with what pyarrow expects for the schema.
+    while (records.length < batchMetadata.length) {
+      const nodes = [];
+      const regions = [];
+      const variadic = [];
+      for (const f of schema.fields) {
+        // Recursive node walker — every (nested) field gets its own
+        // FieldNode + region set.
+        appendEmptyNodes(f.type, nodes, regions, variadic);
+      }
+      records.push({ length: 0, nodes, regions, variadic, buffers: [], byteLength: 0 });
+    }
+    for (let i = 0; i < records.length; i++) {
+      const md = batchMetadata[i];
+      if (md && md.size > 0) records[i].metadata = md;
+    }
+  }
+
   const data = { schema, dictionaries, records };
   return encodeIPC(data, { ...options, codec: id }).finish();
+}
+
+/**
+ * Append FieldNodes + region descriptors for a length-0 column of `type`.
+ * Mirrors `visit()`'s type → buffer mapping but emits zero-sized regions
+ * so the synthesised empty record batch survives schema validation on
+ * the reader side (pyarrow checks the buffer count per field).
+ *
+ * Used by `tableToIPC` to synthesise metadata-only RecordBatch messages
+ * for vgi-rpc's EXCEPTION / log batches that carry status info on a
+ * non-empty schema without any actual rows.
+ */
+function appendEmptyNodes(type, nodes, regions, variadic) {
+  nodes.push({ length: 0, nullCount: 0 });
+  if (type.typeId === Type.Null) return;
+  switch (type.typeId) {
+    case Type.Bool:
+    case Type.Int:
+    case Type.Time:
+    case Type.Duration:
+    case Type.Float:
+    case Type.Date:
+    case Type.Timestamp:
+    case Type.Decimal:
+    case Type.Interval:
+    case Type.FixedSizeBinary:
+    case Type.Dictionary:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      return;
+    case Type.Utf8:
+    case Type.LargeUtf8:
+    case Type.Binary:
+    case Type.LargeBinary:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      return;
+    case Type.BinaryView:
+    case Type.Utf8View:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      variadic.push(0);
+      return;
+    case Type.List:
+    case Type.LargeList:
+    case Type.Map:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      type.children?.forEach((c) => appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    case Type.ListView:
+    case Type.LargeListView:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      type.children?.forEach((c) => appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    case Type.FixedSizeList:
+    case Type.Struct:
+      regions.push({ offset: 0, length: 0 });
+      type.children?.forEach((c) => appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    case Type.RunEndEncoded:
+      type.children?.forEach((c) => appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    case Type.Union:
+      regions.push({ offset: 0, length: 0 });
+      if (type.mode === UnionMode.Dense) {
+        regions.push({ offset: 0, length: 0 });
+      }
+      type.children?.forEach((c) => appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    default:
+      // Best-effort: 2-buffer fallback. Unknown types in a vgi-rpc
+      // error/log batch are rare; the worst case is a reader rejection.
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+  }
 }
 
 function checkBatchLengths(columns) {
@@ -5557,11 +5734,26 @@ function visit(type, batch, ctx) {
  * concatenation produces a stream with multiple EOS markers, which causes
  * readers to stop after the first table's batches.
  *
+ * Dictionary constraint: a single set of dictionary batches is emitted up
+ * front, taken from the first table that contributes data (see the
+ * `dataTable` lookup below). All tables sharing a Dictionary-typed field
+ * MUST therefore use the SAME dictionary values — per-table dictionary
+ * deltas / replacements are NOT supported. This holds for vgi-rpc's wire
+ * pattern (zero-or-more empty metadata/log batches followed by result
+ * batches that share one schema and one dictionary), which is the only
+ * caller. Encoding tables with divergent dictionaries would emit a stream
+ * whose later batches reference dictionary ids the reader resolves to the
+ * wrong values; if that ever becomes a use case, this path must emit
+ * per-table dictionary batches keyed by id instead.
+ *
  * @param {Table[]} tables The Arrow tables to encode (must share a schema).
  * @param {object} [options] Encoding options.
  * @param {Sink} [options.sink] IPC byte consumer.
  * @param {'stream' | 'file'} [options.format] Arrow stream or file format.
  * @param {CompressionType_ | null} [options.codec] Compression codec to apply.
+ * @param {(Map<string, string> | null | undefined)[]} [options.batchMetadata]
+ *  Positional per-record-batch custom_metadata across the combined output
+ *  stream; entry `i` is attached to the `i`-th emitted record batch.
  * @returns {Uint8Array | null} The generated bytes (for an in-memory sink)
  *  or null (if using a sink that writes bytes elsewhere).
  */
@@ -5569,10 +5761,253 @@ function tablesToIPC(tables, options) {
   if (!tables || tables.length === 0) {
     throw new Error('tablesToIPC requires at least one table');
   }
+  // Per-table path stays simple — the per-record-batch custom_metadata
+  // pulled from `t._vgiRecordMetadata` flows through `tableToIPC`'s
+  // batchMetadata option.
   if (tables.length === 1) {
-    return tableToIPC(tables[0], options);
+    const tm = tables[0]?._vgiRecordMetadata;
+    const opts = tm && !options?.batchMetadata
+      ? { ...(options ?? {}), batchMetadata: [tm] }
+      : options;
+    return tableToIPC(tables[0], opts);
   }
-  return tableToIPC(concatTables(tables), options);
+  // Multi-table path: when every input table contributes ≥1 actual
+  // record batch, the standard `concatTables → tableToIPC` flow handles
+  // dictionaries / batch ordering / metadata correctly (per-table
+  // `_vgiRecordMetadata` is honored by `tableToIPC`'s positional
+  // batchMetadata option). When at least one input is metadata-only
+  // (vgi-rpc log/EXCEPTION shape with zero column data), concat would
+  // drop it and scramble positions — fall back to the manual
+  // assembly path that synthesises empties at the right positions.
+  const hasEmptyWithMd = tables.some(
+    (t) => (t?.children?.[0]?.data?.length ?? 0) === 0 && t?._vgiRecordMetadata,
+  );
+  if (!hasEmptyWithMd) {
+    // Build positional batchMetadata from per-table _vgiRecordMetadata.
+    const md = [];
+    for (const t of tables) {
+      const tm = t?._vgiRecordMetadata;
+      const n = t?.children?.[0]?.data?.length ?? 0;
+      for (let i = 0; i < n; i++) md.push(i === 0 ? tm : undefined);
+    }
+    const opts = md.some((m) => m && m.size > 0)
+      ? { ...(options ?? {}), batchMetadata: md }
+      : options;
+    return tableToIPC(concatTables(tables), opts);
+  }
+  return multiTableToIPC(tables, options);
+}
+
+/** Assemble + encode IPC for a sequence of Tables sharing a schema,
+ *  preserving per-table batch positions even when some tables are
+ *  metadata-only with zero column-data batches. */
+function multiTableToIPC(tables, options) {
+  const id = options?.codec;
+  const codec = getCompressionCodec(id);
+  if (id != null && !codec) throw new Error(missingCodec(id));
+
+  const headFields = tables[0].schema.fields;
+  // Per-record-batch entries accumulated in stream order.
+  /** @type {any[]} */
+  const records = [];
+  /** @type {(Map<string,string> | undefined)[]} */
+  const batchMetadata = [];
+
+  for (const t of tables) {
+    const tm = t?._vgiRecordMetadata;
+    const cols = t.children;
+    // Number of actual record batches this table contributes (first
+    // column's data array length — all columns share batch shape).
+    const actualBatches = cols?.[0]?.data?.length ?? 0;
+
+    if (actualBatches > 0) {
+      for (let i = 0; i < actualBatches; i++) {
+        const rec = assembleSingleBatch(cols, i, codec);
+        records.push(rec);
+        batchMetadata.push(i === 0 ? tm : undefined);
+      }
+    } else if (tm) {
+      // Empty data + metadata → synthesise one empty record batch with
+      // proper FieldNodes / region descriptors derived from the schema.
+      const nodes = [];
+      const regions = [];
+      const variadic = [];
+      for (const f of headFields) {
+        _appendEmptyNodes(f.type, nodes, regions, variadic);
+      }
+      records.push({ length: 0, nodes, regions, variadic, buffers: [], byteLength: 0 });
+      batchMetadata.push(tm);
+    }
+    // Tables with no data and no metadata are dropped entirely (same
+    // as legacy concatTables behaviour).
+  }
+
+  // Apply metadata at the right positions.
+  for (let i = 0; i < records.length; i++) {
+    const md = batchMetadata[i];
+    if (md && md.size > 0) records[i].metadata = md;
+  }
+
+  // Assemble dictionary batches + resolved schema. We use the columns
+  // of the first table that contributes actual data — its Dictionary
+  // columns hold the canonical dictionaries that the encoder needs to
+  // emit BEFORE any record batch that references them. Without this,
+  // a schema like `(int64, dictionary<int16, utf8>)` encodes the
+  // RecordBatch fine but pyarrow rejects the stream with "Dictionary
+  // field not found".
+  const dataTable = tables.find((t) => (t?.children?.[0]?.data?.length ?? 0) > 0);
+  let dictionaries = [];
+  let idMap = new Map();
+  if (dataTable) {
+    const r = assembleDictionaryBatches(dataTable.children, codec);
+    dictionaries = r.dictionaries;
+    idMap = r.idMap;
+  }
+  const schema = assembleSchema(tables[0].schema, idMap);
+
+  const data = { schema, dictionaries, records };
+  return encodeIPC(data, { ...options, codec: id }).finish();
+}
+
+/** Assemble one record batch (`columns`'s batchIndex-th batch) into the
+ *  RecordBatch struct flechette's encoder expects. Mirrors the
+ *  `assembleRecordBatch` helper inside `table-to-ipc.js`. */
+function assembleSingleBatch(columns, batchIndex, codec) {
+  let byteLength = 0;
+  const nodes = [];
+  const regions = [];
+  const buffers = [];
+  const variadic = [];
+
+  const ctx = {
+    node(length, nullCount) { nodes.push({ length, nullCount }); },
+    buffer(b) {
+      const bytes = new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
+      const buf = codec ? compressBuffer(bytes, codec) : bytes;
+      const length = buf.byteLength;
+      regions.push({ offset: byteLength, length });
+      buffers.push(buf);
+      byteLength += ((length + 7) & -8);
+    },
+    variadic(length) { variadic.push(length); },
+    children(type, batch) {
+      type.children.forEach((field, index) => {
+        _visit(field.type, batch.children[index], ctx);
+      });
+    },
+  };
+
+  for (const column of columns) {
+    _visit(column.type, column.data[batchIndex], ctx);
+  }
+  return { byteLength, nodes, regions, variadic, buffers };
+}
+
+/** Recursive per-field visitor mirroring `table-to-ipc.js#visit`. Lifted
+ *  here so the multi-table path doesn't need to import private helpers. */
+function _visit(type, batch, ctx) {
+  const { typeId } = type;
+  ctx.node(batch.length, batch.nullCount);
+  if (typeId === Type.Null) return;
+  switch (typeId) {
+    case Type.Bool:
+    case Type.Int:
+    case Type.Time:
+    case Type.Duration:
+    case Type.Float:
+    case Type.Date:
+    case Type.Timestamp:
+    case Type.Decimal:
+    case Type.Interval:
+    case Type.FixedSizeBinary:
+    case Type.Dictionary:
+      ctx.buffer(batch.validity); ctx.buffer(batch.values); return;
+    case Type.Utf8:
+    case Type.LargeUtf8:
+    case Type.Binary:
+    case Type.LargeBinary:
+      ctx.buffer(batch.validity); ctx.buffer(batch.offsets); ctx.buffer(batch.values); return;
+    case Type.BinaryView:
+    case Type.Utf8View:
+      ctx.buffer(batch.validity); ctx.buffer(batch.values);
+      ctx.variadic(batch.data.length);
+      batch.data.forEach((b) => ctx.buffer(b));
+      return;
+    case Type.List:
+    case Type.LargeList:
+    case Type.Map:
+      ctx.buffer(batch.validity); ctx.buffer(batch.offsets);
+      ctx.children(type, batch); return;
+    case Type.ListView:
+    case Type.LargeListView:
+      ctx.buffer(batch.validity); ctx.buffer(batch.offsets); ctx.buffer(batch.sizes);
+      ctx.children(type, batch); return;
+    case Type.FixedSizeList:
+    case Type.Struct:
+      ctx.buffer(batch.validity); ctx.children(type, batch); return;
+    case Type.RunEndEncoded:
+      ctx.children(type, batch); return;
+    case Type.Union: {
+      ctx.buffer(batch.typeIds);
+      if (type.mode === UnionMode.Dense) ctx.buffer(batch.offsets);
+      ctx.children(type, batch);
+      return;
+    }
+    default:
+      throw new Error(`Unsupported type: ${typeId}`);
+  }
+}
+
+/** Mirror of the `appendEmptyNodes` helper in table-to-ipc.js — kept
+ *  here to avoid cross-file imports for an internal helper. */
+function _appendEmptyNodes(type, nodes, regions, variadic) {
+  nodes.push({ length: 0, nullCount: 0 });
+  if (type.typeId === Type.Null) return;
+  switch (type.typeId) {
+    case Type.Bool:
+    case Type.Int:
+    case Type.Time:
+    case Type.Duration:
+    case Type.Float:
+    case Type.Date:
+    case Type.Timestamp:
+    case Type.Decimal:
+    case Type.Interval:
+    case Type.FixedSizeBinary:
+    case Type.Dictionary:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      return;
+    case Type.Utf8:
+    case Type.LargeUtf8:
+    case Type.Binary:
+    case Type.LargeBinary:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      return;
+    case Type.BinaryView:
+    case Type.Utf8View:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      variadic.push(0);
+      return;
+    case Type.List:
+    case Type.LargeList:
+    case Type.Map:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+      type.children?.forEach((c) => _appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    case Type.FixedSizeList:
+    case Type.Struct:
+      regions.push({ offset: 0, length: 0 });
+      type.children?.forEach((c) => _appendEmptyNodes(c.type, nodes, regions, variadic));
+      return;
+    default:
+      regions.push({ offset: 0, length: 0 });
+      regions.push({ offset: 0, length: 0 });
+  }
 }
 
 // concatTables is exported below — `tablesToIPC` is just a thin wrapper that

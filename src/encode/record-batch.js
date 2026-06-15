@@ -29,8 +29,13 @@ export function encodeRecordBatch(builder, batch, compression) {
   const variadicVector = builder.addVector(variadic, 8, 8,
     (builder, count) => builder.addInt64(count)
   );
+  // RecordBatch.length is the batch's row count. Normally derived from
+  // the first FieldNode's length, but a zero-field schema has no nodes —
+  // fall back to an explicit `batch.length` (vgi-rpc's metadata-only
+  // empty batch uses 0) so the FlatBuffer doesn't trip on `nodes[0]`.
+  const rowCount = nodes.length > 0 ? nodes[0].length : (batch.length ?? 0);
   return builder.addObject(5, b => {
-    b.addInt64(0, nodes[0].length, 0);
+    b.addInt64(0, rowCount, 0);
     b.addOffset(1, nodeVector, 0);
     b.addOffset(2, regionVector, 0);
     b.addOffset(3, encodeCompression(builder, compression), 0);

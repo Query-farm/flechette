@@ -36,6 +36,21 @@ export class Table<T extends TypeMap = TypeMap> {
      */
     readonly factory: StructFactory;
     /**
+     * First record batch's custom_metadata, surfaced as a shortcut for the
+     * common single-batch wire pattern. Set by `tableFromIPC` when the batch
+     * carries metadata, and may be set by callers before `tablesToIPC` to
+     * attach per-table metadata. Undefined when no batch metadata is present.
+     * @type {Map<string, string> | undefined}
+     */
+    _vgiRecordMetadata: Map<string, string> | undefined;
+    /**
+     * Positional per-batch custom_metadata for multi-batch tables (entry `i`
+     * is batch `i`'s metadata, or null). Set by `tableFromIPC` when a table
+     * decodes more than one record batch.
+     * @type {(Map<string, string> | null)[] | undefined}
+     */
+    _vgiRecordMetadataPerBatch: (Map<string, string> | null)[] | undefined;
+    /**
      * Returns a row object generator for the given batch index.
      * @private
      * @readonly

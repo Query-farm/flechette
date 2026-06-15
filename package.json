@@ -1,23 +1,41 @@
 {
-  "name": "@uwdata/flechette",
+  "name": "@query-farm/flechette",
   "version": "2.4.0",
-  "description": "Fast, lightweight access to Apache Arrow data.",
+  "description": "Fast, lightweight access to Apache Arrow data — Query Farm fork of @uwdata/flechette with per-record-batch custom_metadata, multi-batch IPC stream encoding (tablesToIPC/concatTables), and foreign Arrow type support for VGI.",
   "keywords": [
     "arrow",
     "data",
-    "access"
+    "access",
+    "ipc",
+    "vgi",
+    "query-farm"
   ],
   "license": "BSD-3-Clause",
   "author": "Jeffrey Heer (https://idl.uw.edu)",
+  "contributors": [
+    "Query Farm LLC (https://query.farm)"
+  ],
   "type": "module",
   "main": "./dist/flechette.cjs",
   "module": "./src/index.js",
   "jsdelivr": "./dist/flechette.min.js",
   "unpkg": "./dist/flechette.min.js",
   "types": "./dist/types/index-types.d.ts",
+  "files": [
+    "src",
+    "dist",
+    "NOTICE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://github.com/Query-farm/flechette#readme",
+  "bugs": {
+    "url": "https://github.com/Query-farm/flechette/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/uwdata/flechette.git"
+    "url": "git+https://github.com/Query-farm/flechette.git"
   },
   "scripts": {
     "perf": "node perf/run-all.js",

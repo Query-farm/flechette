@@ -1,0 +1,30 @@
+@query-farm/flechette
+======================
+
+This package is a fork of Flechette (@uwdata/flechette) by the UW
+Interactive Data Lab, distributed under the BSD 3-Clause License (see
+LICENSE). All original copyright notices are retained.
+
+Original work:
+  Copyright (c) 2024, UW Interactive Data Lab
+  https://github.com/uwdata/flechette
+
+Modifications in this fork:
+  Copyright (c) 2025, 2026 Query Farm LLC
+  https://query.farm — https://github.com/Query-farm/flechette
+
+The Query Farm modifications, also released under the BSD 3-Clause License,
+add support required by the Vector Gateway Interface (VGI) Arrow IPC wire
+protocol:
+
+  * Per-record-batch custom_metadata (Arrow IPC Message field 4) encode +
+    decode, surfaced on decoded tables via `_vgiRecordMetadata` /
+    `_vgiRecordMetadataPerBatch`.
+  * Multi-batch IPC stream encoding: `tablesToIPC` and `concatTables`,
+    preserving per-table batch positions even when some tables are
+    metadata-only (zero column-data batches).
+  * Empty-record-batch synthesis for metadata-only batches on a non-empty
+    schema (e.g. VGI EXCEPTION batches).
+  * Foreign Arrow type acceptance in the encoder (arrow-js `isSigned` /
+    `ArrayType` shapes), enabling columns built from arrow-js DataTypes to
+    serialize through flechette.
