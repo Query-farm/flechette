@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+      # The fork's own work (and every published @query-farm/flechette
+      # version) lives on this branch; `main` mirrors upstream. Run the
+      # suite on pushes here too, otherwise the fork's code is never tested.
+      - fix/timestamp-bigint-encode
   pull_request:
 
 jobs:
