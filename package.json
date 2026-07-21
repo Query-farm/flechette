@@ -1,6 +1,6 @@
 {
   "name": "@query-farm/flechette",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Fast, lightweight access to Apache Arrow data — Query Farm fork of @uwdata/flechette with per-record-batch custom_metadata, multi-batch IPC stream encoding (tablesToIPC/concatTables), and foreign Arrow type support for VGI.",
   "keywords": [
     "arrow",
