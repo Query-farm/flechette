@@ -1,8 +1,8 @@
 /**
- * @import { Batch, DictionaryBatch } from '../batch.js';
+ * @import { Batch } from '../batch.js';
  * @import { Column } from '../column.js';
  * @import { Table } from '../table.js';
- * @import { Codec, CompressionType_, DataType, RecordBatch, Schema, TypedArray } from '../types.js';
+ * @import { Codec, CompressionType_, DataType, DictionaryBatch, RecordBatch, Schema, TypedArray } from '../types.js';
  * @import { Sink } from './sink.js';
  */
 import { compressBuffer, getCompressionCodec, missingCodec } from '../compression.js';
@@ -39,7 +39,6 @@ export function tableToIPC(table, options) {
 
   const { dictionaries, idMap } = assembleDictionaryBatches(columns, codec);
   const records = assembleRecordBatches(columns, codec);
-  const schema = assembleSchema(table.schema, idMap);
 
   // Per-record-batch custom_metadata — Arrow IPC Message field 4. The
   // caller threads in an array (indexed by batch position) via
@@ -47,6 +46,24 @@ export function tableToIPC(table, options) {
   // emission. Absent / undefined entries encode as no metadata, matching
   // the pre-feature behaviour for plain data batches.
   const batchMetadata = options?.batchMetadata;
+
+  // A zero-length column carries no batches at all (`columnFromValues`
+  // only pushes a batch when it saw a row), so `assembleDictionaryBatches`
+  // — which reaches dictionaries through `col.data[0]` — finds nothing and
+  // leaves `idMap` empty. That is harmless while the stream also has no
+  // record batches, but below we synthesise one for `batchMetadata`. The
+  // synthesised batch has a FieldNode for the dictionary column, and
+  // `assembleSchema` stamps an id onto the schema's Dictionary field, so
+  // the stream would declare a dictionary id that no DictionaryBatch
+  // message ever defines — readers (flechette's own included, and DuckDB)
+  // then fail resolving it. Emit matching empty DictionaryBatch messages
+  // and register their ids so schema and messages agree.
+  if (batchMetadata && records.length < batchMetadata.length) {
+    appendEmptyDictionaryBatches(table.schema, dictionaries, idMap);
+  }
+
+  const schema = assembleSchema(table.schema, idMap);
+
   if (batchMetadata) {
     // Synthesise empty record batches for metadata entries past
     // `records.length`. Two shapes flow here:
@@ -76,6 +93,55 @@ export function tableToIPC(table, options) {
 
   const data = { schema, dictionaries, records };
   return encodeIPC(data, { ...options, codec: id }).finish();
+}
+
+/**
+ * Synthesise empty (length-0) dictionary batches for every Dictionary type
+ * reachable from `schema` that has no assembled dictionary batch yet, and
+ * register the assigned ids in `idMap` so `assembleSchema` stamps the same
+ * ids onto the schema's Dictionary fields.
+ *
+ * Only used for the zero-batch + `batchMetadata` case, where an empty
+ * RecordBatch is synthesised for a table whose columns hold no batches: the
+ * record batch references dictionary ids, so the ids must be defined.
+ *
+ * Keys are the dictionary *values* type objects, matching
+ * `assembleDictionaryBatches`/`assembleSchema` (`idMap.get(type.dictionary)`).
+ *
+ * @param {Schema} schema The (unresolved) table schema.
+ * @param {DictionaryBatch[]} dictionaries Dictionary batch messages to
+ *  append to.
+ * @param {Map<DataType, number>} idMap Map from dictionary values type to id.
+ */
+function appendEmptyDictionaryBatches(schema, dictionaries, idMap) {
+  // continue the id sequence assembleDictionaryBatches used, if any
+  let id = -1;
+  for (const value of idMap.values()) {
+    if (value > id) id = value;
+  }
+
+  const visitType = type => {
+    if (type?.typeId === Type.Dictionary) {
+      const values = type.dictionary;
+      if (!idMap.has(values)) {
+        idMap.set(values, ++id);
+        const nodes = [];
+        const regions = [];
+        const variadic = [];
+        appendEmptyNodes(values, nodes, regions, variadic);
+        dictionaries.push({
+          id,
+          isDelta: false,
+          data: { length: 0, nodes, regions, variadic, buffers: [], byteLength: 0 }
+        });
+      }
+      // a dictionary's values may themselves be (or contain) dictionaries
+      visitType(values);
+    }
+    type?.children?.forEach(field => visitType(field.type));
+  };
+
+  schema.fields.forEach(field => visitType(field.type));
 }
 
 /**

@@ -29,7 +29,7 @@ export function tableToIPC(table: Table, options: {
  *  instances to dictionary ids.
  */
 export function assembleDictionaryBatches(columns: Column<any>[], codec?: Codec): {
-    dictionaries: DictionaryBatch<any>[];
+    dictionaries: DictionaryBatch[];
     idMap: Map<DataType, number>;
 };
 /**
@@ -47,6 +47,6 @@ import type { Sink } from './sink.js';
 import type { CompressionType_ } from '../types.js';
 import type { Column } from '../column.js';
 import type { Codec } from '../types.js';
-import type { DictionaryBatch } from '../batch.js';
+import type { DictionaryBatch } from '../types.js';
 import type { DataType } from '../types.js';
 import type { Schema } from '../types.js';
