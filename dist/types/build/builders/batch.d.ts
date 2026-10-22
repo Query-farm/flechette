@@ -1,20 +1,21 @@
 /**
  * @import { Batch } from '../../batch.js'
  */
+import type { Batch } from '../../batch.js';
 /**
  * Abstract class for building a column data batch.
  */
-export class BatchBuilder {
-    constructor(type: any, ctx: any);
+export declare class BatchBuilder {
     type: any;
     ctx: any;
     batchClass: any;
+    index: number;
+    constructor(type: any, ctx: any);
     /**
      * Initialize the builder state.
      * @returns {this} This builder.
      */
     init(): this;
-    index: number;
     /**
      * Write a value to the builder.
      * @param {*} value
@@ -34,4 +35,3 @@ export class BatchBuilder {
      */
     batch(): Batch<any>;
 }
-import type { Batch } from '../../batch.js';

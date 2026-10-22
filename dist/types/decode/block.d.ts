@@ -4,7 +4,7 @@
  * @param {number} index The starting index in the byte buffer
  * @returns The file block.
  */
-export function decodeBlock(buf: Uint8Array, index: number): {
+export declare function decodeBlock(buf: Uint8Array, index: number): {
     offset: number;
     metadataLength: number;
     bodyLength: number;
@@ -15,7 +15,7 @@ export function decodeBlock(buf: Uint8Array, index: number): {
  * @param {number} index
  * @returns An array of file blocks.
  */
-export function decodeBlocks(buf: Uint8Array, index: number): {
+export declare function decodeBlocks(buf: Uint8Array, index: number): {
     offset: number;
     metadataLength: number;
     bodyLength: number;

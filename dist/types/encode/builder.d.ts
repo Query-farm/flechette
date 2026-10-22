@@ -1,22 +1,8 @@
-export function writeInt32(buf: any, index: any, value: any): void;
-export function writeInt64(buf: any, index: any, value: any): void;
-/**
- * Prepare to write an element of `size` after `additionalBytes` have been
- * written, e.g. if we write a string, we need to align such the int length
- * field is aligned to 4 bytes, and the string data follows it directly. If all
- * we need to do is alignment, `additionalBytes` will be 0.
- * @param {Builder} builder The builder to prep.
- * @param {number} size The size of the new element to write.
- * @param {number} additionalBytes Additional padding size.
- */
-export function prep(builder: Builder, size: number, additionalBytes: number): void;
+import type { Sink } from './sink.js';
+export declare function writeInt32(buf: any, index: any, value: any): void;
+export declare function writeInt64(buf: any, index: any, value: any): void;
 /** Flatbuffer binary builder. */
-export class Builder {
-    /**
-     * Create a new builder instance.
-     * @param {Sink} sink The byte consumer.
-     */
-    constructor(sink: Sink);
+export declare class Builder {
     /**
      * Sink that consumes built byte buffers.
      * @type {Sink}
@@ -47,6 +33,11 @@ export class Builder {
      * Total bytes written to sink thus far.
      */
     outputBytes: number;
+    /**
+     * Create a new builder instance.
+     * @param {Sink} sink The byte consumer.
+     */
+    constructor(sink: Sink);
     /**
      * Returns the flatbuffer offset, relative to the end of the current buffer.
      * @returns {number} Offset relative to the end of the buffer.
@@ -105,7 +96,7 @@ export class Builder {
      * Add a flatbuffer object (vtable).
      * @param {number} numFields The maximum number of fields
      *  this object may include.
-     * @param {(tableBuilder: ReturnType<objectBuilder>) => void} [addFields]
+     * @param {(tableBuilder: ReturnType<typeof objectBuilder>) => void} [addFields]
      *  A callback function that writes all fields using an object builder.
      * @returns {number} The object offset.
      */
@@ -171,7 +162,16 @@ export class Builder {
      */
     addPadding(byteCount: number): void;
 }
-import type { Sink } from './sink.js';
+/**
+ * Prepare to write an element of `size` after `additionalBytes` have been
+ * written, e.g. if we write a string, we need to align such the int length
+ * field is aligned to 4 bytes, and the string data follows it directly. If all
+ * we need to do is alignment, `additionalBytes` will be 0.
+ * @param {Builder} builder The builder to prep.
+ * @param {number} size The size of the new element to write.
+ * @param {number} additionalBytes Additional padding size.
+ */
+export declare function prep(builder: Builder, size: number, additionalBytes: number): void;
 /**
  * Returns a builder object for flatbuffer objects (vtables).
  * @param {Builder} builder The underlying flatbuffer builder.

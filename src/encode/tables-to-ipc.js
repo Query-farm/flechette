@@ -57,7 +57,7 @@ export function tablesToIPC(tables, options) {
   if (tables.length === 1) {
     const tm = tables[0]?._vgiRecordMetadata;
     const opts = tm && !options?.batchMetadata
-      ? { ...(options ?? {}), batchMetadata: [tm] }
+      ? { ...options, batchMetadata: [tm] }
       : options;
     return tableToIPC(tables[0], opts);
   }
@@ -81,7 +81,7 @@ export function tablesToIPC(tables, options) {
       for (let i = 0; i < n; i++) md.push(i === 0 ? tm : undefined);
     }
     const opts = md.some((m) => m && m.size > 0)
-      ? { ...(options ?? {}), batchMetadata: md }
+      ? { ...options, batchMetadata: md }
       : options;
     return tableToIPC(concatTables(tables), opts);
   }

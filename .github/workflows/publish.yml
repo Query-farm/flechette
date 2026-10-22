@@ -43,9 +43,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
       # Trusted Publishing (OIDC) requires npm CLI >= 11.5.1; the bundled npm
@@ -54,7 +58,7 @@ jobs:
         run: npm install -g npm@latest
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       # Cheap safety: a v-tag must match the version in package.json, so we
       # never publish 2.4.0 under a v2.4.1 tag or vice-versa.
@@ -72,13 +76,13 @@ jobs:
       # `prepublishOnly` runs test + lint + build, but run them here too so a
       # failure is attributed to the right step in the run log.
       - name: Test
-        run: npm run test
+        run: pnpm run test
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Build (bundles + types)
-        run: npm run build
+        run: pnpm run build
 
       # The fork tracks dist/ so `github:Query-farm/flechette#<branch>`
       # installs work without a build step. A stale dist means the tag and the
@@ -86,7 +90,7 @@ jobs:
       - name: Verify tracked dist/ matches a fresh build
         run: |
           if ! git diff --quiet -- dist; then
-            echo "::error::dist/ is out of date — run 'npm run build' and commit the result."
+            echo "::error::dist/ is out of date — run 'pnpm run build' and commit the result."
             git diff --stat -- dist
             exit 1
           fi

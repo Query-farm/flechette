@@ -1,4 +1,4 @@
-export class Sink {
+export declare class Sink {
     /**
      * Write bytes to this sink.
      * @param {Uint8Array} bytes The byte buffer to write.
@@ -14,6 +14,19 @@ export class Sink {
      */
     finish(): Uint8Array | null;
 }
-export class MemorySink extends Sink {
+export declare class MemorySink extends Sink {
     buffers: any[];
+    /**
+     * A sink that collects bytes in memory.
+     */
+    constructor();
+    /**
+     * Write bytes
+     * @param {Uint8Array} bytes
+     */
+    write(bytes: Uint8Array): void;
+    /**
+     * @returns {Uint8Array}
+     */
+    finish(): Uint8Array;
 }

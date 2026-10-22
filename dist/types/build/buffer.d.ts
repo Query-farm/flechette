@@ -1,25 +1,21 @@
+import type { TypedArray, TypedArrayConstructor } from '../types.js';
 /**
  * Create a new resizable buffer instance.
  * @param {TypedArrayConstructor} [arrayType]
  *  The array type.
  * @returns {Buffer} The buffer.
  */
-export function buffer(arrayType?: TypedArrayConstructor): Buffer;
-/**
- * Create a new resizable bitmap instance.
- * @returns {Bitmap} The bitmap buffer.
- */
-export function bitmap(): Bitmap;
+export declare function buffer(arrayType?: TypedArrayConstructor): Buffer;
 /**
  * Resizable byte buffer.
  */
-export class Buffer {
+export declare class Buffer {
+    buf: BigInt64Array<ArrayBuffer> | BigUint64Array<ArrayBuffer> | Float32Array<ArrayBuffer> | Float64Array<ArrayBuffer> | Int16Array<ArrayBuffer> | Int32Array<ArrayBuffer> | Int8Array<ArrayBuffer> | Uint16Array<ArrayBuffer> | Uint32Array<ArrayBuffer> | Uint8Array<ArrayBuffer>;
     /**
      * Create a new resizable buffer instance.
      * @param {TypedArrayConstructor} arrayType
      */
     constructor(arrayType?: TypedArrayConstructor);
-    buf: Uint8Array<ArrayBuffer> | Float64Array<ArrayBuffer> | BigInt64Array<ArrayBuffer> | Uint32Array<ArrayBuffer> | Int32Array<ArrayBuffer> | Uint16Array<ArrayBuffer> | Int8Array<ArrayBuffer> | Int16Array<ArrayBuffer> | BigUint64Array<ArrayBuffer> | Float32Array<ArrayBuffer>;
     /**
      * Return the underlying data as a 64-bit aligned array of minimum size.
      * @param {number} size The desired minimum array size.
@@ -51,14 +47,17 @@ export class Buffer {
     write(bytes: Uint8Array, index: number): void;
 }
 /**
+ * Create a new resizable bitmap instance.
+ * @returns {Bitmap} The bitmap buffer.
+ */
+export declare function bitmap(): Bitmap;
+/**
  * Resizable bitmap buffer.
  */
-export class Bitmap extends Buffer {
+export declare class Bitmap extends Buffer {
     /**
      * Set a bit to true at the given bitmap index.
      * @param {number} index The index to write to.
      */
     set(index: number): void;
 }
-import type { TypedArrayConstructor } from '../types.js';
-import type { TypedArray } from '../types.js';

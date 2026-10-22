@@ -1,0 +1,2 @@
+# Keep generated bundles and declarations collapsed in code review.
+dist/** linguist-generated=true -whitespace

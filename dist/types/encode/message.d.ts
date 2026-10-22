@@ -1,3 +1,5 @@
+import type { Block, MessageHeader_ } from '../types.js';
+import type { Builder } from './builder.js';
 /**
  * Write an IPC message to the builder sink.
  * @param {Builder} builder
@@ -9,7 +11,4 @@
  *  for the message-level `custom_metadata` field. Pass 0 (or omit) to
  *  encode no metadata, matching the pre-feature behaviour.
  */
-export function writeMessage(builder: Builder, headerType: MessageHeader_, headerOffset: number, bodyLength: number, blocks?: Block[], metadataOffset?: number): void;
-import type { Builder } from './builder.js';
-import type { MessageHeader_ } from '../types.js';
-import type { Block } from '../types.js';
+export declare function writeMessage(builder: Builder, headerType: MessageHeader_, headerOffset: number, bodyLength: number, blocks?: Block[], metadataOffset?: number): void;

@@ -1,12 +1,14 @@
+import { BatchBuilder } from './batch.js';
 /**
  * Builder for run-end-encoded-typed data batches.
  */
-export class RunEndEncodedBuilder extends BatchBuilder {
+export declare class RunEndEncodedBuilder extends BatchBuilder {
     children: any;
-    init(): this;
     pos: number;
     key: any;
     value: any;
+    constructor(type: any, ctx: any);
+    init(): this;
     next(): void;
     set(value: any, index: any): void;
     done(): {
@@ -16,4 +18,3 @@ export class RunEndEncodedBuilder extends BatchBuilder {
         children: any;
     };
 }
-import { BatchBuilder } from './batch.js';

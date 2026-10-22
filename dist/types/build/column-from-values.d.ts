@@ -1,3 +1,6 @@
+import type { ColumnBuilderOptions, DataType } from '../types.js';
+import type { dictionaryContext } from './builders/dictionary.js';
+import { Column } from '../column.js';
 /**
  * Create a new column by iterating over provided values.
  * @template T
@@ -7,12 +10,8 @@
  * @param {DataType} [type] The data type.
  * @param {ColumnBuilderOptions} [options]
  *  Builder options for the generated column.
- * @param {ReturnType<dictionaryContext>} [dicts]
+ * @param {ReturnType<typeof dictionaryContext>} [dicts]
  *  Dictionary context object, for internal use only.
  * @returns {Column<T>} The generated column.
  */
-export function columnFromValues<T>(values: Iterable<any> | ((callback: (value: any) => void) => void), type?: DataType, options?: ColumnBuilderOptions, dicts?: ReturnType<typeof dictionaryContext>): Column<T>;
-import type { DataType } from '../types.js';
-import type { ColumnBuilderOptions } from '../types.js';
-import type { dictionaryContext } from './builders/dictionary.js';
-import { Column } from '../column.js';
+export declare function columnFromValues<T>(values: Iterable<any> | ((callback: (value: any) => void) => void), type?: DataType, options?: ColumnBuilderOptions, dicts?: ReturnType<typeof dictionaryContext>): Column<T>;

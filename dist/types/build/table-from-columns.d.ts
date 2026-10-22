@@ -1,3 +1,5 @@
+import type { Column } from '../column.js';
+import { Table } from '../table.js';
 /**
  * Create a new table from a collection of columns. Columns are assumed
  * to have the same record batch sizes.
@@ -7,6 +9,4 @@
  *  objects should be used to represent table rows (default `false`).
  * @returns {Table} The new table.
  */
-export function tableFromColumns(data: [string, Column<any>][] | Record<string, Column<any>>, useProxy?: boolean): Table;
-import type { Column } from '../column.js';
-import { Table } from '../table.js';
+export declare function tableFromColumns(data: [string, Column<any>][] | Record<string, Column<any>>, useProxy?: boolean): Table;
