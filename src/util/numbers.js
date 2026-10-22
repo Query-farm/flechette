@@ -49,12 +49,15 @@ export function toDateDay(value) {
 }
 
 /**
- * Returns a day-divisible value from a millisecond timestamp.
- * @param {number} value The millisecond timestamp.
- * @returns {bigint} A UTC date-aligned millisecond timestamp.
+ * Returns a day-divisible value from a millisecond timestamp. Bigint inputs
+ * represent raw Date64 storage and are preserved without normalization, so
+ * adapters can copy existing buffers losslessly (including non-day-aligned
+ * values written by other Arrow implementations).
+ * @param {number | bigint | Date} value The millisecond timestamp or raw value.
+ * @returns {bigint} The raw value, or a UTC date-aligned millisecond timestamp.
  */
 export function toDateMillisecond(value) {
-  return toBigInt(864e5 * toDateDay(value));
+  return typeof value === 'bigint' ? value : toBigInt(864e5 * toDateDay(Number(value)));
 }
 
 /**

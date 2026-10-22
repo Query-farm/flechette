@@ -144,6 +144,20 @@ describe('columnFromArray', () => {
     test(dates, dateMillisecond(), { useDate: true, expected });
   });
 
+  it('preserves raw bigint Date64 storage without date normalization', () => {
+    const values = [0n, 1745152496123n, -1n, -123456789n, null];
+    const column = test(values, dateMillisecond(), {
+      expected: values.map(value => value == null ? null : Number(value))
+    });
+    expect(Array.from(column.data[0].values)).toEqual([
+      0n, 1745152496123n, -1n, -123456789n, 0n
+    ]);
+    test(values, dateMillisecond(), {
+      useDate: true,
+      expected: values.map(value => value == null ? null : new Date(Number(value)))
+    });
+  });
+
   it('builds time columns', () => {
     const values = [10, 1000, 1e6, 1e8];
     test(values, timeSecond());

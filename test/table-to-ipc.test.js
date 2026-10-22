@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFile } from 'node:fs/promises';
-import { Version, columnFromArray, tableFromColumns, tableFromIPC, tableToIPC } from '../src/index.js';
+import { Version, columnFromArray, dateMillisecond, list, struct, field, tableFromColumns, tableFromIPC, tableToIPC } from '../src/index.js';
 import * as dataMethods from './util/data.js';
 
 const files = [
@@ -11,6 +11,18 @@ const files = [
 ];
 
 describe('tableToIPC', () => {
+  it('preserves raw Date64 milliseconds in nested IPC data', () => {
+    const type = list(struct([field('date', dateMillisecond())]));
+    const values = [[{ date: -1n }, { date: 1745152496123n }], null, []];
+    const table = tableFromColumns({ values: columnFromArray(values, type) });
+    for (const format of ['stream', 'file']) {
+      const decoded = tableFromIPC(tableToIPC(table, { format }));
+      expect(Array.from(decoded.getChild('values'))).toEqual([
+        [{ date: -1 }, { date: 1745152496123 }], null, []
+      ]);
+    }
+  });
+
   for (const [name, method] of Object.entries(dataMethods)) {
     it(`encodes ${name} data`, async () => {
       const data = await method();

@@ -118,6 +118,8 @@ const ipcTyped = tableToIPC(tableTyped, { format: 'file' });
 
 ### Customize Data Extraction
 
+For lossless adapters, `dateMillisecond()` accepts `bigint` inputs as raw Date64 millisecond values, preserving even non-day-aligned values from existing Arrow data. Number and `Date` inputs are normalized to UTC midnight.
+
 Data extraction can be customized using options provided to table generation methods. By default, temporal data is returned as numeric timestamps, 64-bit integers are coerced to numbers, map-typed data is returned as an array of [key, value] pairs, and struct/row objects are returned as vanilla JS objects with extracted property values. These defaults can be changed via conversion options that push (or remove) transformations to the underlying data batches.
 
 ```js
