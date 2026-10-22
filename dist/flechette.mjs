@@ -1574,11 +1574,8 @@ function toDateMillisecond(value) {
 }
 /**
 * Return a timestamp conversion method for the given time unit.
-* Number inputs are interpreted as milliseconds since the epoch (matching
-* JavaScript Date semantics) and converted to the column's native unit.
-* BigInt inputs are assumed to already be in the column's native unit,
-* symmetric with the `useBigIntTimestamp` extraction option, so they
-* round-trip without precision loss for sub-millisecond resolutions.
+* Number inputs use milliseconds; bigint inputs already use the target unit,
+* matching values extracted with useBigIntTimestamp.
 * @param {TimeUnit_} unit The time unit.
 * @returns {(value: number | bigint) => bigint} The conversion method.
 */
@@ -3357,17 +3354,8 @@ var Builder = class {
 	}
 	/**
 	* Add a flatbuffer vector (list).
-	*
-	* Empty vectors emit an int32 length-zero prefix and return a non-zero
-	* offset, so callers using `addOffset(field, off, defaultValue=0)` keep
-	* the field present in the vtable. Apache Arrow C++ rejects flatbuffers
-	* whose `Schema.fields` is null, which is what happened previously when
-	* `if (!n) return 0;` collapsed empty fields into "field absent".
-	* Returning a real offset for an empty vector matches the wire format
-	* arrow-js (and pyarrow) produce, costs 4 bytes per empty vector, and
-	* leaves decoders unchanged (an absent vs. present-empty vector both
-	* decode to a zero-length array).
-	*
+	* Empty arrays produce a present, zero-length vector. Only null or undefined
+	* inputs omit the vector; Arrow readers require Schema.fields to be present.
 	* @template T
 	* @param {T[]} items An array of items to write.
 	* @param {number} itemSize The size in bytes of a serialized item.
@@ -3377,15 +3365,11 @@ var Builder = class {
 	* @returns {number} The vector offset.
 	*/
 	addVector(items, itemSize, alignment, writeItem) {
-		const n = items?.length ?? 0;
-		if (n > 0) {
-			prep(this, 4, itemSize * n);
-			prep(this, alignment, itemSize * n);
-			for (let i = n; --i >= 0;) writeItem(this, items[i]);
-		} else {
-			prep(this, 4, 0);
-			prep(this, alignment, 0);
-		}
+		if (items == null) return 0;
+		const n = items.length;
+		prep(this, 4, itemSize * n);
+		prep(this, alignment, itemSize * n);
+		for (let i = n; --i >= 0;) writeItem(this, items[i]);
 		this.writeInt32(n);
 		return this.offset();
 	}
@@ -6488,7 +6472,7 @@ function builder(type, ctx = builderContext()) {
 //#endregion
 //#region src/build/column-from-values.js
 /**
-* @import { ColumnBuilderOptions, DataType, NullType } from '../types.js'
+* @import { ColumnBuilderOptions, ColumnBuilderType, DataType, NullType } from '../types.js'
 * @import { dictionaryContext } from './builders/dictionary.js'
 */
 /**
@@ -6497,7 +6481,7 @@ function builder(type, ctx = builderContext()) {
 * @param {Iterable | ((callback: (value: any) => void) => void)} values
 *  Either an iterable object or a visitor function that applies a callback
 *  to successive data values (akin to Array.forEach).
-* @param {DataType} [type] The data type.
+* @param {ColumnBuilderType} [type] The data type.
 * @param {ColumnBuilderOptions} [options]
 *  Builder options for the generated column.
 * @param {ReturnType<typeof dictionaryContext>} [dicts]
@@ -6508,16 +6492,16 @@ function columnFromValues(values, type, options = {}, dicts) {
 	const visit = isIterable(values) ? (callback) => {
 		for (const value of values) callback(value);
 	} : values;
-	type ??= inferType(visit);
+	const dataType = normalizeType(type ?? inferType(visit));
 	const { maxBatchRows = Infinity, ...opt } = options;
 	let data;
-	if (type.typeId === Type.Null) {
+	if (dataType.typeId === Type.Null) {
 		let length = 0;
 		visit(() => ++length);
-		data = nullBatches(type, length, maxBatchRows);
+		data = nullBatches(dataType, length, maxBatchRows);
 	} else {
 		const ctx = builderContext(opt, dicts);
-		const b = builder(type, ctx).init();
+		const b = builder(dataType, ctx).init();
 		const next = (b) => data.push(b.batch());
 		data = [];
 		let row = 0;
@@ -6531,7 +6515,18 @@ function columnFromValues(values, type, options = {}, dicts) {
 		if (row) next(b);
 		ctx.finish();
 	}
-	return new Column(data, type);
+	return new Column(data, dataType);
+}
+/**
+* Normalize Arrow JS numeric descriptors without mutating the input. Derive
+* the backing array from the logical type instead of trusting ArrayType.
+* @param {ColumnBuilderType} type
+* @returns {DataType}
+*/
+function normalizeType(type) {
+	if (type.typeId === Type.Int && !("values" in type) && "isSigned" in type) return int(type.bitWidth, type.isSigned);
+	if (type.typeId === Type.Float && !("values" in type) && "precision" in type) return float(type.precision);
+	return type;
 }
 /**
 * Create null batches with the given batch size limit.
@@ -6556,14 +6551,14 @@ function nullBatches(type, length, limit) {
 //#endregion
 //#region src/build/column-from-array.js
 /**
-* @import { ColumnBuilderOptions, DataType, TypedArray, TypedArrayConstructor } from '../types.js'
+* @import { ColumnBuilderOptions, ColumnBuilderType, DataType, TypedArray, TypedArrayConstructor } from '../types.js'
 * @import { dictionaryContext } from './builders/dictionary.js'
 */
 /**
 * Create a new column from a provided data array.
 * @template T
 * @param {Array | TypedArray} array The input data.
-* @param {DataType} [type] The data type.
+* @param {ColumnBuilderType} [type] The data type.
 *  If not specified, type inference is attempted.
 * @param {ColumnBuilderOptions} [options]
 *  Builder options for the generated column.

@@ -386,6 +386,21 @@ export interface ColumnBuilderOptions extends ExtractionOptions {
     maxBatchRows?: number;
 }
 /**
+ * Column input types. Arrow JS integer and floating-point descriptors are
+ * normalized to Flechette types when building columns. Other types must use
+ * Flechette's data type representation.
+ * Arrow JS declares specialized type IDs for numeric subclasses, although
+ * their runtime IDs are always Int (2) or Float (3), so typeId is a number here.
+ */
+export type ColumnBuilderType = DataType | {
+    typeId: number;
+    bitWidth: IntBitWidth;
+    isSigned: boolean;
+} | {
+    typeId: number;
+    precision: Precision_;
+};
+/**
  * Options for building new tables and controlling how values are
  * transformed when extracted from an Arrow binary representation.
  */
@@ -393,7 +408,7 @@ export interface TableBuilderOptions extends ColumnBuilderOptions {
     /**
      * A map from column names to Arrow data types.
      */
-    types?: Record<string, DataType>;
+    types?: Record<string, ColumnBuilderType>;
 }
 /**
  * A map of types for representing table columns.

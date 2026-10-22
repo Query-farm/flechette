@@ -46,3 +46,6 @@ jobs:
 
       - name: Verify tracked build output
         run: git diff --exit-code -- dist
+
+      - name: Check Arrow JS numeric type compatibility
+        run: pnpm exec tsc --ignoreConfig --noEmit --strict --skipLibCheck --target es2022 --module node16 test/types/arrow-numeric.ts

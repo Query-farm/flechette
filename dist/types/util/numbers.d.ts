@@ -33,11 +33,8 @@ export declare function toDateDay(value: number): number;
 export declare function toDateMillisecond(value: number): bigint;
 /**
  * Return a timestamp conversion method for the given time unit.
- * Number inputs are interpreted as milliseconds since the epoch (matching
- * JavaScript Date semantics) and converted to the column's native unit.
- * BigInt inputs are assumed to already be in the column's native unit,
- * symmetric with the `useBigIntTimestamp` extraction option, so they
- * round-trip without precision loss for sub-millisecond resolutions.
+ * Number inputs use milliseconds; bigint inputs already use the target unit,
+ * matching values extracted with useBigIntTimestamp.
  * @param {TimeUnit_} unit The time unit.
  * @returns {(value: number | bigint) => bigint} The conversion method.
  */
