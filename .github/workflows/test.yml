@@ -40,3 +40,9 @@ jobs:
 
       - name: Run tests
         run: pnpm run test
+
+      - name: Build bundles and type declarations
+        run: pnpm run build
+
+      - name: Verify tracked build output
+        run: git diff --exit-code -- dist
