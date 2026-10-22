@@ -1,3 +1,5 @@
+import type { ArrowData, ExtractionOptions } from '../types.js';
+import { Table } from '../table.js';
 /**
  * Decode [Apache Arrow IPC data][1] and return a new Table. The input binary
  * data may be either an `ArrayBuffer` or `Uint8Array`. For Arrow data in the
@@ -14,7 +16,7 @@
  *  from an Arrow binary representation.
  * @returns {Table} A Table instance.
  */
-export function tableFromIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[], options?: ExtractionOptions): Table;
+export declare function tableFromIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[], options?: ExtractionOptions): Table;
 /**
  * Create a table from parsed IPC data.
  * @param {ArrowData} data
@@ -24,7 +26,4 @@ export function tableFromIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[], 
  *  from am Arrow binary representation.
  * @returns {Table} A Table instance.
  */
-export function createTable(data: ArrowData, options?: ExtractionOptions): Table;
-import type { ExtractionOptions } from '../types.js';
-import { Table } from '../table.js';
-import type { ArrowData } from '../types.js';
+export declare function createTable(data: ArrowData, options?: ExtractionOptions): Table;

@@ -1,3 +1,5 @@
+import type { Sink } from './sink.js';
+import type { CompressionType_ } from '../types.js';
 /**
  * Encode assembled data into Arrow IPC binary format.
  * @param {any} data Assembled table data.
@@ -7,10 +9,8 @@
  * @param {CompressionType_} [options.codec] Compression codec to apply.
  * @returns {Sink} The sink that was passed in.
  */
-export function encodeIPC(data: any, { sink, format, codec }?: {
+export declare function encodeIPC(data: any, { sink, format, codec }?: {
     sink?: Sink;
-    format?: "stream" | "file";
+    format?: 'stream' | 'file';
     codec?: CompressionType_;
 }): Sink;
-import type { Sink } from './sink.js';
-import type { CompressionType_ } from '../types.js';

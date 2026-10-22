@@ -1,7 +1,9 @@
+import type { Batch } from './batch.js';
+import type { DataType, ValueArray } from './types.js';
 /**
  * Build up a column from batches.
  */
-export function columnBuilder(type: any): {
+export declare function columnBuilder(type: any): {
     add(batch: any): /*elided*/ any;
     clear: () => any[];
     done: () => Column<any>;
@@ -14,7 +16,39 @@ export function columnBuilder(type: any): {
  * provide more efficient ways for bulk access or scanning.
  * @template T
  */
-export class Column<T> {
+export declare class Column<T> {
+    /**
+     * The column data type.
+     * @type {DataType}
+     * @readonly
+     */
+    type: DataType;
+    /**
+     * The column length.
+     * @type {number}
+     * @readonly
+     */
+    length: number;
+    /**
+     * The count of null values in the column.
+     * @type {number}
+     * @readonly
+     */
+    nullCount: number;
+    /**
+     * An array of column data batches.
+     * @type {readonly Batch<T>[]}
+     * @readonly
+     */
+    data: readonly Batch<T>[];
+    /**
+     * Index offsets for data batches.
+     * Used to map a column row index to a batch-specific index.
+     * @type {Int32Array}
+     * @readonly
+     */
+    offsets: Int32Array;
+    _cache: ValueArray<T>;
     /**
      * Create a new column instance.
      * @param {Batch<T>[]} data The value batches.
@@ -23,29 +57,14 @@ export class Column<T> {
      */
     constructor(data: Batch<T>[], type?: DataType);
     /**
-     * The column data type.
-     * @type {DataType}
-     * @readonly
+     * Provide an informative object string tag.
      */
-    readonly type: DataType;
+    get [Symbol.toStringTag](): string;
     /**
-     * The column length.
-     * @type {number}
-     * @readonly
+     * Return an iterator over the values in this column.
+     * @returns {Iterator<T?>}
      */
-    readonly length: number;
-    /**
-     * The count of null values in the column.
-     * @type {number}
-     * @readonly
-     */
-    readonly nullCount: number;
-    /**
-     * An array of column data batches.
-     * @type {readonly Batch<T>[]}
-     * @readonly
-     */
-    readonly data: readonly Batch<T>[];
+    [Symbol.iterator](): Iterator<T | null>;
     /**
      * Return the column value at the given index. If a column has multiple
      * batches, this method performs binary search over the batch lengths to
@@ -57,13 +76,6 @@ export class Column<T> {
      * @returns {T | null} The value.
      */
     at(index: number): T | null;
-    /**
-     * Index offsets for data batches.
-     * Used to map a column row index to a batch-specific index.
-     * @type {Int32Array}
-     * @readonly
-     */
-    readonly offsets: Int32Array;
     /**
      * Return the column value at the given index. This method is the same as
      * `at()` and is provided for better compatibility with Apache Arrow JS.
@@ -82,17 +94,4 @@ export class Column<T> {
      * Used internally to accelerate dictionary types.
      */
     cache(): ValueArray<T>;
-    _cache: ValueArray<T>;
-    /**
-     * Provide an informative object string tag.
-     */
-    get [Symbol.toStringTag](): string;
-    /**
-     * Return an iterator over the values in this column.
-     * @returns {Iterator<T?>}
-     */
-    [Symbol.iterator](): Iterator<T | null>;
 }
-import type { DataType } from './types.js';
-import type { Batch } from './batch.js';
-import type { ValueArray } from './types.js';

@@ -1,3 +1,4 @@
+import type { Message } from '../types.js';
 /**
  * A "message" contains a block of Apache Arrow data, such as a schema,
  * record batch, or dictionary batch. This message decodes a single
@@ -6,5 +7,4 @@
  * @param {number} index The starting index in the byte buffer
  * @returns {Message} The decoded message.
  */
-export function decodeMessage(buf: Uint8Array, index: number): Message;
-import type { Message } from '../types.js';
+export declare function decodeMessage(buf: Uint8Array, index: number): Message;

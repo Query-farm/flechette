@@ -1,3 +1,4 @@
+import type { ArrowData } from '../types.js';
 /**
  * Decode [Apache Arrow IPC data][1] and return parsed schema, record batch,
  * and dictionary batch definitions. The input binary data may be either
@@ -14,7 +15,7 @@
  *  span multiple byte arrays.
  * @returns {import('../types.js').ArrowData}
  */
-export function decodeIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[]): import("../types.js").ArrowData;
+export declare function decodeIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[]): import('../types.js').ArrowData;
 /**
  * Decode data in the [Arrow IPC 'stream' format][1].
  *
@@ -24,7 +25,7 @@ export function decodeIPC(data: ArrayBufferLike | Uint8Array | Uint8Array[]): im
  *  self-contained messages. Messages may NOT span multiple byte arrays.
  * @returns {ArrowData}
  */
-export function decodeIPCStream(data: Uint8Array | Uint8Array[]): ArrowData;
+export declare function decodeIPCStream(data: Uint8Array | Uint8Array[]): ArrowData;
 /**
  * Decode data in the [Arrow IPC 'file' format][1].
  *
@@ -32,5 +33,4 @@ export function decodeIPCStream(data: Uint8Array | Uint8Array[]): ArrowData;
  * @param {Uint8Array} data The source byte buffer.
  * @returns {ArrowData}
  */
-export function decodeIPCFile(data: Uint8Array): ArrowData;
-import type { ArrowData } from '../types.js';
+export declare function decodeIPCFile(data: Uint8Array): ArrowData;

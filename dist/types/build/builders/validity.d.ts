@@ -1,10 +1,18 @@
+import { BatchBuilder } from './batch.js';
 /**
  * Builder for validity bitmaps within batches.
  */
-export class ValidityBuilder extends BatchBuilder {
-    init(): this;
+export declare class ValidityBuilder extends BatchBuilder {
     nullCount: number;
     validity: import("../buffer.js").Bitmap;
+    constructor(type: any, ctx: any);
+    init(): this;
+    /**
+     * @param {*} value
+     * @param {number} index
+     * @returns {boolean | void}
+     */
+    set(value: any, index: number): boolean | void;
     done(): {
         length: number;
         nullCount: number;
@@ -12,4 +20,3 @@ export class ValidityBuilder extends BatchBuilder {
         validity: import("../../types.js").TypedArray;
     };
 }
-import { BatchBuilder } from './batch.js';

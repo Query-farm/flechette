@@ -1,6 +1,6 @@
 # Flechette <a href="https://idl.uw.edu/flechette"><img align="right" src="assets/logo.svg" height="38"/></a>
 
-**Flechette** is a JavaScript library for reading and writing the [Apache Arrow](https://arrow.apache.org/) columnar in-memory data format. It provides a faster, lighter, zero-dependency alternative to the [Arrow JS reference implementation](https://github.com/apache/arrow/tree/main/js).
+**Flechette** is a JavaScript library for reading and writing the [Apache Arrow](https://arrow.apache.org/) columnar in-memory data format. It provides a faster, lighter alternative to the [Arrow JS reference implementation](https://github.com/apache/arrow/tree/main/js).
 
 Flechette performs fast extraction and encoding of data columns in the Arrow binary IPC format, supporting ingestion of Arrow data from sources such as [DuckDB](https://duckdb.org/) and Arrow use in JavaScript data analysis tools like [Arquero](https://github.com/uwdata/arquero), [Mosaic](https://github.com/uwdata/mosaic), [Observable Plot](https://observablehq.com/plot/), and [Vega-Lite](https://vega.github.io/vega-lite/).
 
@@ -12,11 +12,11 @@ In the process of developing multiple data analysis packages that consume Arrow 
 
 * _Speed_. Flechette provides better performance. Performance tests show 1.3-1.6x faster value iteration, 2-7x faster array extraction, 7-11x faster row object extraction, and 1.5-3.5x faster building of Arrow columns.
 
-* _Size_. Flechette is smaller: ~43k minified (~14k gzip'd) versus 163k minified (~43k gzip'd) for Arrow JS. Flechette's encoders and decoders also tree-shake cleanly, so you only pay for what you need in custom bundles.
+* _Size_. Flechette is smaller: ~49k minified (~16k gzip'd) versus 163k minified (~43k gzip'd) for Arrow JS. Flechette's encoders and decoders also tree-shake cleanly, so you only pay for what you need in custom bundles.
 
 * _Coverage_. Flechette supports data types unsupported by the reference implementation, including decimal-to-number conversion, month/day/nanosecond time intervals (as used by DuckDB), run-end encoded data, binary views, and list views.
 
-* _Flexibility_. Flechette includes options to control data value conversion, such as numerical timestamps vs. Date objects for temporal data, and numbers vs. bigint values for 64-bit integer data.
+* _Flexibility_. Flechette includes options to control data value conversion, such as numerical timestamps vs. Date objects for temporal data, numbers vs. bigint values for 64-bit integer data, and GeoArrow WKB-to-GeoJSON decoding.
 
 * _Simplicity_. Our goal is to provide a smaller, simpler code base in the hope that it will make it easier for ourselves and others to improve the library. If you'd like to see support for additional Arrow features, please [file an issue](https://github.com/uwdata/flechette/issues) or [open a pull request](https://github.com/uwdata/flechette/pulls).
 
@@ -118,6 +118,7 @@ const table = tableFromIPC(ipc, {
   useDecimalInt: true,      // use scaled ints for decimals, not floating point
   useBigInt: true,          // use BigInt for 64-bit ints, do not coerce to number
   useBigIntTimestamp: true, // use BigInt for timestamps, do not coerce to millisecond number
+  useGeoJSON: true,         // decode GeoArrow WKB/WKT geometry columns to GeoJSON objects
   useMap: true,             // create Map objects for [key, value] pair lists
   useProxy: true            // use zero-copy proxies for struct and table row objects
 });
@@ -130,5 +131,5 @@ The same extraction options can be passed to `tableFromArrays`. For more, see th
 To build and develop Flechette locally:
 
 - Clone https://github.com/uwdata/flechette.
-- Run `npm i` to install dependencies.
-- Run `npm test` to run test cases, `npm run perf` to run performance benchmarks, and `npm run build` to build output files.
+- Run `pnpm i` to install dependencies.
+- Run `pnpm test` to run test cases, `pnpm run perf` to run performance benchmarks, and `pnpm run build` to build output files.

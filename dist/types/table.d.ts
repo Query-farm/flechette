@@ -1,3 +1,5 @@
+import type { Column } from './column.js';
+import type { Schema, StructFactory, TypeMap, ValueArray } from './types.js';
 /**
  * A table consists of a collection of named columns (or 'children').
  * To work with table data directly in JavaScript, use `toColumns()`
@@ -6,35 +8,27 @@
  * by row index, use `getChild()` to access data for a specific column.
  * @template {TypeMap} [T=TypeMap]
  */
-export class Table<T extends TypeMap = TypeMap> {
-    /**
-     * Create a new table with the given schema and columns (children).
-     * @param {Schema} schema The table schema.
-     * @param {Column[]} children The table columns.
-     * @param {boolean} [useProxy=false] Flag indicating if row proxy
-     *  objects should be used to represent table rows (default `false`).
-     */
-    constructor(schema: Schema, children: Column<any>[], useProxy?: boolean);
+export declare class Table<T extends TypeMap = TypeMap> {
     /**
      * @type {Schema}
      * @readonly
      */
-    readonly schema: Schema;
+    schema: Schema;
     /**
      * @type {(keyof T)[]}
      * @readonly
      */
-    readonly names: (keyof T)[];
+    names: (keyof T)[];
     /**
      * @type {Column[]}
      * @readonly
      */
-    readonly children: Column<any>[];
+    children: Column<any>[];
     /**
      * @type {StructFactory}
      * @readonly
      */
-    readonly factory: StructFactory;
+    factory: StructFactory;
     /**
      * First record batch's custom_metadata, surfaced as a shortcut for the
      * common single-batch wire pattern. Set by `tableFromIPC` when the batch
@@ -57,7 +51,19 @@ export class Table<T extends TypeMap = TypeMap> {
      * @param {number} b The batch index.
      * @returns {(index: number) => { [P in keyof T]: T[P] }}
      */
-    private readonly getFactory;
+    getFactory;
+    /**
+     * Create a new table with the given schema and columns (children).
+     * @param {Schema} schema The table schema.
+     * @param {Column[]} children The table columns.
+     * @param {boolean} [useProxy=false] Flag indicating if row proxy
+     *  objects should be used to represent table rows (default `false`).
+     */
+    constructor(schema: Schema, children: Column<any>[], useProxy?: boolean);
+    /**
+     * Provide an informative object string tag.
+     */
+    get [Symbol.toStringTag](): string;
     /**
      * The number of columns in this table.
      * @return {number} The number of columns.
@@ -116,6 +122,11 @@ export class Table<T extends TypeMap = TypeMap> {
      */
     toArray(): { [P in keyof T]: T[P]; }[];
     /**
+     * Return an iterator over objects representing the rows of this table.
+     * @returns {Generator<{ [P in keyof T]: T[P] }, any, any>}
+     */
+    [Symbol.iterator](): Generator<{ [P in keyof T]: T[P]; }, any, any>;
+    /**
      * Return a row object for the given index.
      * @param {number} index The row index.
      * @returns {{ [P in keyof T]: T[P] }} The row object.
@@ -128,18 +139,4 @@ export class Table<T extends TypeMap = TypeMap> {
      * @returns {{ [P in keyof T]: T[P] }} The row object.
      */
     get(index: number): { [P in keyof T]: T[P]; };
-    /**
-     * Provide an informative object string tag.
-     */
-    get [Symbol.toStringTag](): string;
-    /**
-     * Return an iterator over objects representing the rows of this table.
-     * @returns {Generator<{ [P in keyof T]: T[P] }, any, any>}
-     */
-    [Symbol.iterator](): Generator<{ [P in keyof T]: T[P]; }, any, any>;
 }
-import type { TypeMap } from './types.js';
-import type { Schema } from './types.js';
-import type { Column } from './column.js';
-import type { StructFactory } from './types.js';
-import type { ValueArray } from './types.js';

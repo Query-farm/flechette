@@ -1,16 +1,29 @@
+import type { Geometry } from '@uwdata/wk-geojson';
+import type { Column } from './column.js';
+import type { DataType, OffsetArray, TypedArray, TypedArrayConstructor, ValueArray } from './types.js';
+import { fromDecimal64 } from './util/numbers.js';
+import { objectFactory } from './util/struct.js';
 /**
  * Check if the input is a batch that supports direct access to
  * binary data in the form of typed arrays.
  * @param {Batch<any>?} batch The data batch to check.
  * @returns {boolean} True if a direct batch, false otherwise.
  */
-export function isDirectBatch(batch: Batch<any> | null): boolean;
+export declare function isDirectBatch(batch: Batch<any> | null): boolean;
 /**
  * Column values from a single record batch.
  * A column may contain multiple batches.
  * @template T
  */
-export class Batch<T> {
+export declare class Batch<T> {
+    length: number;
+    nullCount: number;
+    type: DataType;
+    validity: Uint8Array<ArrayBufferLike>;
+    values: TypedArray;
+    offsets: OffsetArray;
+    sizes: OffsetArray;
+    children: Batch<any>[];
     /**
      * The array type to use when extracting data from the batch.
      * A null value indicates that the array type should match
@@ -40,14 +53,10 @@ export class Batch<T> {
         sizes?: OffsetArray;
         children?: Batch<any>[];
     });
-    length: number;
-    nullCount: number;
-    type: DataType;
-    validity: Uint8Array<ArrayBufferLike>;
-    values: TypedArray;
-    offsets: OffsetArray;
-    sizes: OffsetArray;
-    children: Batch<any>[];
+    /**
+     * Provide an informative object string tag.
+     */
+    get [Symbol.toStringTag](): string;
     /**
      * Return the value at the given index.
      * @param {number} index The value index.
@@ -77,10 +86,6 @@ export class Batch<T> {
      */
     slice(start: number, end: number): ValueArray<T | null>;
     /**
-     * Provide an informative object string tag.
-     */
-    get [Symbol.toStringTag](): string;
-    /**
      * Return an iterator over the values in this batch.
      * @returns {Iterator<T?>}
      */
@@ -91,7 +96,8 @@ export class Batch<T> {
  * @template T
  * @extends {Batch<T>}
  */
-export class DirectBatch<T> extends Batch<T> {
+export declare class DirectBatch<T> extends Batch<T> {
+    values: any;
     /**
      * Create a new column batch with direct value array access.
      * @param {object} options
@@ -108,112 +114,76 @@ export class DirectBatch<T> extends Batch<T> {
         validity?: Uint8Array;
         values: TypedArray;
     });
-    values: any;
+    /**
+     * Extract an array of values within the given index range. Unlike
+     * Array.slice, all arguments are required and may not be negative indices.
+     * When feasible, a zero-copy subarray of a typed array is returned.
+     * @param {number} start The starting index, inclusive
+     * @param {number} end The ending index, exclusive
+     * @returns {ValueArray<T?>} The slice of values
+     */
+    slice(start: number, end: number): ValueArray<T | null>;
+    /**
+     * Return an iterator over the values in this batch.
+     * @returns {Iterator<T?>}
+     */
+    [Symbol.iterator](): Iterator<T | null>;
 }
 /**
  * A batch whose values are transformed to 64-bit numbers.
  * @extends {Batch<number>}
  */
-export class NumberBatch extends Batch<number> {
+export declare class NumberBatch extends Batch<number> {
     static ArrayType: Float64ArrayConstructor;
-    /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
-     */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
 }
 /**
  * A batch whose values should be returned in a standard array.
  * @template T
  * @extends {Batch<T>}
  */
-export class ArrayBatch<T> extends Batch<T> {
+export declare class ArrayBatch<T> extends Batch<T> {
     static ArrayType: ArrayConstructor;
 }
 /**
  * A batch of null values only.
  * @extends {ArrayBatch<null>}
  */
-export class NullBatch extends ArrayBatch<null> {
+export declare class NullBatch extends ArrayBatch<null> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index The value index
+     * @returns {null}
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): null;
 }
 /**
  * A batch that coerces BigInt values to 64-bit numbers.
  * @extends {NumberBatch}
  */
-export class Int64Batch extends NumberBatch {
+export declare class Int64Batch extends NumberBatch {
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of 16-bit floating point numbers, accessed as unsigned
  * 16-bit ints and transformed to 64-bit numbers.
  */
-export class Float16Batch extends NumberBatch {
+export declare class Float16Batch extends NumberBatch {
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of boolean values stored as a bitmap.
  * @extends {ArrayBatch<boolean>}
  */
-export class BoolBatch extends ArrayBatch<boolean> {
+export declare class BoolBatch extends ArrayBatch<boolean> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index The value index
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): boolean;
 }
 /**
  * A batch of 32-bit decimal numbers, returned as converted 64-bit floating
@@ -221,9 +191,13 @@ export class BoolBatch extends ArrayBatch<boolean> {
  * not be represented in a 64-bit floating point format.
  * @extends {NumberBatch}
  */
-export class Decimal32NumberBatch extends NumberBatch {
-    constructor(options: any);
+export declare class Decimal32NumberBatch extends NumberBatch {
     scale: number;
+    constructor(options: any);
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * An abstract class for a batch of 64-, 128- or 256-bit decimal numbers,
@@ -231,10 +205,10 @@ export class Decimal32NumberBatch extends NumberBatch {
  * @template T
  * @extends {Batch<T>}
  */
-export class DecimalBatch<T> extends Batch<T> {
-    constructor(options: any);
+export declare class DecimalBatch<T> extends Batch<T> {
     decimal: typeof fromDecimal64;
     scale: bigint;
+    constructor(options: any);
 }
 /**
  * A batch of 64-, 128- or 256-bit decimal numbers, returned as converted
@@ -242,9 +216,12 @@ export class DecimalBatch<T> extends Batch<T> {
  * precision can not be represented in a 64-bit floating point format.
  * @extends {DecimalBatch<number>}
  */
-export class DecimalNumberBatch extends DecimalBatch<number> {
+export declare class DecimalNumberBatch extends DecimalBatch<number> {
     static ArrayType: Float64ArrayConstructor;
-    constructor(options: any);
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of 64-, 128- or 256-bit decimal numbers, returned as scaled
@@ -252,9 +229,12 @@ export class DecimalNumberBatch extends DecimalBatch<number> {
  * to integer places by the decimal type scale factor.
  * @extends {DecimalBatch<bigint>}
  */
-export class DecimalBigIntBatch extends DecimalBatch<bigint> {
+export declare class DecimalBigIntBatch extends DecimalBatch<bigint> {
     static ArrayType: ArrayConstructor;
-    constructor(options: any);
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): bigint;
 }
 /**
  * A batch of date or timestamp values that are coerced to UNIX epoch timestamps
@@ -262,97 +242,79 @@ export class DecimalBigIntBatch extends DecimalBatch<bigint> {
  * timestamp values.
  * @extends {ArrayBatch<Date>}
  */
-export class DateBatch extends ArrayBatch<Date> {
+export declare class DateBatch extends ArrayBatch<Date> {
+    source: Batch<number>;
     /**
      * Create a new date batch.
      * @param {Batch<number>} batch A batch of timestamp values.
      */
     constructor(batch: Batch<number>);
-    source: Batch<number>;
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): Date;
 }
 /**
  * A batch of dates as day counts, coerced to timestamp numbers.
  */
-export class DateDayBatch extends NumberBatch {
+export declare class DateDayBatch extends NumberBatch {
+    /**
+     * @param {number} index The value index
+     * @returns {number}
+     */
+    value(index: number): number;
 }
 /**
  * A batch of dates as millisecond timestamps, coerced to numbers.
  */
-export const DateDayMillisecondBatch: typeof Int64Batch;
+export declare const DateDayMillisecondBatch: typeof Int64Batch;
 /**
  * A batch of timestaps in seconds, coerced to millisecond numbers.
  */
-export class TimestampSecondBatch extends Int64Batch {
+export declare class TimestampSecondBatch extends Int64Batch {
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of timestaps in milliseconds, coerced to numbers.
  */
-export const TimestampMillisecondBatch: typeof Int64Batch;
+export declare const TimestampMillisecondBatch: typeof Int64Batch;
 /**
  * A batch of timestaps in microseconds, coerced to millisecond numbers.
  */
-export class TimestampMicrosecondBatch extends Int64Batch {
+export declare class TimestampMicrosecondBatch extends Int64Batch {
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of timestaps in nanoseconds, coerced to millisecond numbers.
  */
-export class TimestampNanosecondBatch extends Int64Batch {
+export declare class TimestampNanosecondBatch extends Int64Batch {
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): number;
 }
 /**
  * A batch of day/time intervals, returned as two-element 32-bit int arrays.
  * @extends {ArrayBatch<Int32Array>}
  */
-export class IntervalDayTimeBatch extends ArrayBatch<Int32Array<ArrayBufferLike>> {
+export declare class IntervalDayTimeBatch extends ArrayBatch<Int32Array> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index The value index
+     * @returns {Int32Array}
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): Int32Array;
 }
 /**
  * A batch of month/day/nanosecond intervals, returned as three-element arrays.
  * @extends {ArrayBatch<Float64Array>}
  */
-export class IntervalMonthDayNanoBatch extends ArrayBatch<Float64Array<ArrayBufferLike>> {
-    /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
-     */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+export declare class IntervalMonthDayNanoBatch extends ArrayBatch<Float64Array> {
     /**
      * @param {number} index The value index
      */
@@ -363,29 +325,12 @@ export class IntervalMonthDayNanoBatch extends ArrayBatch<Float64Array<ArrayBuff
  * unsigned 8-bit integers. The offsets are 32-bit ints.
  * @extends {ArrayBatch<Uint8Array>}
  */
-export class BinaryBatch extends ArrayBatch<Uint8Array<ArrayBufferLike>> {
+export declare class BinaryBatch extends ArrayBatch<Uint8Array> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index
+     * @returns {Uint8Array}
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): Uint8Array;
 }
 /**
  * A batch of binary blobs with variable offsets, returned as byte buffers of
@@ -393,86 +338,69 @@ export class BinaryBatch extends ArrayBatch<Uint8Array<ArrayBufferLike>> {
  * fail if an offset exceeds `Number.MAX_SAFE_INTEGER`.
  * @extends {ArrayBatch<Uint8Array>}
  */
-export class LargeBinaryBatch extends ArrayBatch<Uint8Array<ArrayBufferLike>> {
+export declare class LargeBinaryBatch extends ArrayBatch<Uint8Array> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index
+     * @returns {Uint8Array}
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): Uint8Array;
 }
 /**
  * A batch of UTF-8 strings with variable offsets. The offsets are 32-bit ints.
  * @extends {ArrayBatch<string>}
  */
-export class Utf8Batch extends ArrayBatch<string> {
+export declare class Utf8Batch extends ArrayBatch<string> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): string;
 }
 /**
  * A batch of UTF-8 strings with variable offsets. The offsets are 64-bit ints.
  * Value extraction will fail if an offset exceeds `Number.MAX_SAFE_INTEGER`.
  * @extends {ArrayBatch<string>}
  */
-export class LargeUtf8Batch extends ArrayBatch<string> {
+export declare class LargeUtf8Batch extends ArrayBatch<string> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * @param {number} index
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): string;
+}
+/**
+ * A batch of geometry values in well-known binary (WKB) format that are
+ * decoded and returned as GeoJSON geometry objects. This batch wraps a
+ * source batch that provides WKB byte arrays.
+ * @extends {ArrayBatch<Geometry>}
+ */
+export declare class WKBGeoJSONBatch extends ArrayBatch<Geometry> {
+    source: Batch<Uint8Array<ArrayBufferLike>>;
+    /**
+     * Create a new WKB to GeoJSON batch.
+     * @param {Batch<Uint8Array>} batch A batch of WKB byte arrays.
+     */
+    constructor(batch: Batch<Uint8Array>);
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): Geometry;
+}
+/**
+ * A batch of geometry values in well-known text (WKT) format that are
+ * decoded and returned as GeoJSON geometry objects. This batch wraps a
+ * source batch that provides WKT strings.
+ * @extends {ArrayBatch<Geometry>}
+ */
+export declare class WKTGeoJSONBatch extends ArrayBatch<Geometry> {
+    source: Batch<string>;
+    /**
+     * Create a new WKT to GeoJSON batch.
+     * @param {Batch<string>} batch A batch of WKT strings.
+     */
+    constructor(batch: Batch<string>);
+    /**
+     * @param {number} index The value index
+     */
+    value(index: number): Geometry;
 }
 /**
  * A batch of list (array) values of variable length. The list offsets are
@@ -480,7 +408,12 @@ export class LargeUtf8Batch extends ArrayBatch<string> {
  * @template V
  * @extends {ArrayBatch<ValueArray<V>>}
  */
-export class ListBatch<V> extends ArrayBatch<ValueArray<V>> {
+export declare class ListBatch<V> extends ArrayBatch<ValueArray<V>> {
+    /**
+     * @param {number} index
+     * @returns {ValueArray<V>}
+     */
+    value(index: number): ValueArray<V>;
 }
 /**
  * A batch of list (array) values of variable length. The list offsets are
@@ -489,7 +422,12 @@ export class ListBatch<V> extends ArrayBatch<ValueArray<V>> {
  * @template V
  * @extends {ArrayBatch<ValueArray<V>>}
  */
-export class LargeListBatch<V> extends ArrayBatch<ValueArray<V>> {
+export declare class LargeListBatch<V> extends ArrayBatch<ValueArray<V>> {
+    /**
+     * @param {number} index
+     * @returns {ValueArray<V>}
+     */
+    value(index: number): ValueArray<V>;
 }
 /**
  * A batch of list (array) values of variable length. The list offsets and
@@ -497,7 +435,12 @@ export class LargeListBatch<V> extends ArrayBatch<ValueArray<V>> {
  * @template V
  * @extends {ArrayBatch<ValueArray<V>>}
  */
-export class ListViewBatch<V> extends ArrayBatch<ValueArray<V>> {
+export declare class ListViewBatch<V> extends ArrayBatch<ValueArray<V>> {
+    /**
+     * @param {number} index
+     * @returns {ValueArray<V>}
+     */
+    value(index: number): ValueArray<V>;
 }
 /**
  * A batch of list (array) values of variable length. The list offsets and
@@ -506,22 +449,46 @@ export class ListViewBatch<V> extends ArrayBatch<ValueArray<V>> {
  * @template V
  * @extends {ArrayBatch<ValueArray<V>>}
  */
-export class LargeListViewBatch<V> extends ArrayBatch<ValueArray<V>> {
+export declare class LargeListViewBatch<V> extends ArrayBatch<ValueArray<V>> {
+    /**
+     * @param {number} index
+     * @returns {ValueArray<V>}
+     */
+    value(index: number): ValueArray<V>;
+}
+/**
+ * A batch with a fixed stride.
+ * @template T
+ * @extends {ArrayBatch<T>}
+ */
+declare class FixedBatch<T> extends ArrayBatch<T> {
+    /** @type {number} */
+    stride: number;
+    constructor(options: any);
 }
 /**
  * A batch of binary blobs of fixed size, returned as byte buffers of unsigned
  * 8-bit integers.
  * @extends {FixedBatch<Uint8Array>}
  */
-export class FixedBinaryBatch extends FixedBatch<Uint8Array<ArrayBufferLike>> {
-    constructor(options: any);
+export declare class FixedBinaryBatch extends FixedBatch<Uint8Array> {
+    /**
+     * @param {number} index
+     * @returns {Uint8Array}
+     */
+    value(index: number): Uint8Array;
 }
 /**
  * A batch of list (array) values of fixed length.
  * @template V
  * @extends {FixedBatch<ValueArray<V>>}
  */
-export class FixedListBatch<V> extends FixedBatch<ValueArray<V>> {
+export declare class FixedListBatch<V> extends FixedBatch<ValueArray<V>> {
+    /**
+     * @param {number} index
+     * @returns {ValueArray<V>}
+     */
+    value(index: number): ValueArray<V>;
 }
 /**
  * A batch of map (key, value) values. The map is represented as a list of
@@ -529,29 +496,13 @@ export class FixedListBatch<V> extends FixedBatch<ValueArray<V>> {
  * @template K, V
  * @extends {ArrayBatch<[K, V][]>}
  */
-export class MapEntryBatch<K, V> extends ArrayBatch<[K, V][]> {
+export declare class MapEntryBatch<K, V> extends ArrayBatch<[K, V][]> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * Return the value at the given index.
+     * @param {number} index The value index.
+     * @returns {[K, V][]} The map entries as an array of [key, value] arrays.
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): [K, V][];
 }
 /**
  * A batch of map (key, value) values. The map is represented as a list of
@@ -559,29 +510,13 @@ export class MapEntryBatch<K, V> extends ArrayBatch<[K, V][]> {
  * @template K, V
  * @extends {ArrayBatch<Map<K, V>>}
  */
-export class MapBatch<K, V> extends ArrayBatch<Map<K, V>> {
+export declare class MapBatch<K, V> extends ArrayBatch<Map<K, V>> {
     /**
-     * Create a new column batch.
-     * @param {object} options
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {TypedArray} [options.values] Values buffer
-     * @param {OffsetArray} [options.offsets] Offsets buffer
-     * @param {OffsetArray} [options.sizes] Sizes buffer
-     * @param {Batch[]} [options.children] Children batches
+     * Return the value at the given index.
+     * @param {number} index The value index.
+     * @returns {Map<K, V>} The map value.
      */
-    constructor({ length, nullCount, type, validity, values, offsets, sizes, children }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values?: TypedArray;
-        offsets?: OffsetArray;
-        sizes?: OffsetArray;
-        children?: Batch<any>[];
-    });
+    value(index: number): Map<K, V>;
 }
 /**
  * A batch of union-type values with a sparse layout, enabling direct
@@ -589,7 +524,11 @@ export class MapBatch<K, V> extends ArrayBatch<Map<K, V>> {
  * @template T
  * @extends {ArrayBatch<T>}
  */
-export class SparseUnionBatch<T> extends ArrayBatch<T> {
+export declare class SparseUnionBatch<T> extends ArrayBatch<T> {
+    /** @type {Int8Array} */
+    typeIds: Int8Array;
+    /** @type {Record<string, number>} */
+    typeMap: Record<string, number>;
     /**
      * Create a new column batch.
      * @param {object} options
@@ -612,10 +551,6 @@ export class SparseUnionBatch<T> extends ArrayBatch<T> {
         typeIds: Int8Array;
         map: Record<string, number>;
     });
-    /** @type {Int8Array} */
-    typeIds: Int8Array;
-    /** @type {Record<string, number>} */
-    typeMap: Record<string, number>;
     /**
      * @param {number} index The value index.
      */
@@ -627,7 +562,7 @@ export class SparseUnionBatch<T> extends ArrayBatch<T> {
  * @template T
  * @extends {SparseUnionBatch<T>}
  */
-export class DenseUnionBatch<T> extends SparseUnionBatch<T> {
+export declare class DenseUnionBatch<T> extends SparseUnionBatch<T> {
     /**
      * @param {number} index The value index.
      */
@@ -638,11 +573,16 @@ export class DenseUnionBatch<T> extends SparseUnionBatch<T> {
  * Struct property values are extracted and returned as JS objects.
  * @extends {ArrayBatch<Record<string, any>>}
  */
-export class StructBatch extends ArrayBatch<Record<string, any>> {
-    constructor(options: any, factory?: typeof objectFactory);
+export declare class StructBatch extends ArrayBatch<Record<string, any>> {
     /** @type {string[]} */
     names: string[];
     factory: (index: number) => Record<string, any>;
+    constructor(options: any, factory?: typeof objectFactory);
+    /**
+     * @param {number} index The value index.
+     * @returns {Record<string, any>}
+     */
+    value(index: number): Record<string, any>;
 }
 /**
  * A batch of struct values, containing a set of named properties.
@@ -650,7 +590,7 @@ export class StructBatch extends ArrayBatch<Record<string, any>> {
  * from underlying Arrow batches.
  * @extends {StructBatch}
  */
-export class StructProxyBatch extends StructBatch {
+export declare class StructProxyBatch extends StructBatch {
     constructor(options: any);
 }
 /**
@@ -658,7 +598,7 @@ export class StructProxyBatch extends StructBatch {
  * @template T
  * @extends {ArrayBatch<T>}
  */
-export class RunEndEncodedBatch<T> extends ArrayBatch<T> {
+export declare class RunEndEncodedBatch<T> extends ArrayBatch<T> {
     /**
      * @param {number} index The value index.
      */
@@ -669,7 +609,9 @@ export class RunEndEncodedBatch<T> extends ArrayBatch<T> {
  * @template T
  * @extends {ArrayBatch<T>}
  */
-export class DictionaryBatch<T> extends ArrayBatch<T> {
+export declare class DictionaryBatch<T> extends ArrayBatch<T> {
+    dictionary: Column<T>;
+    cache: ValueArray<T>;
     /**
      * Register the backing dictionary. Dictionaries are added
      * after batch creation as the complete dictionary may not
@@ -678,8 +620,10 @@ export class DictionaryBatch<T> extends ArrayBatch<T> {
      * The dictionary of column values.
      */
     setDictionary(dictionary: Column<T>): this;
-    dictionary: Column<T>;
-    cache: ValueArray<T>;
+    /**
+     * @param {number} index The value index.
+     */
+    value(index: number): T;
     /**
      * @param {number} index The value index.
      * @returns {number} The dictionary key
@@ -687,77 +631,11 @@ export class DictionaryBatch<T> extends ArrayBatch<T> {
     key(index: number): number;
 }
 /**
- * A batch of binary blobs from variable data buffers, returned as byte
- * buffers of unsigned 8-bit integers.
- * @extends {ViewBatch<Uint8Array>}
- */
-export class BinaryViewBatch extends ViewBatch<Uint8Array<ArrayBufferLike>> {
-    /**
-     * Create a new view batch.
-     * @param {object} options Batch options.
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {Uint8Array} options.values Values buffer
-     * @param {Uint8Array[]} options.data View data buffers
-     */
-    constructor({ data, ...options }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values: Uint8Array;
-        data: Uint8Array[];
-    });
-}
-/**
- * A batch of UTF-8 strings from variable data buffers.
- * @extends {ViewBatch<string>}
- */
-export class Utf8ViewBatch extends ViewBatch<string> {
-    /**
-     * Create a new view batch.
-     * @param {object} options Batch options.
-     * @param {number} options.length The length of the batch
-     * @param {number} options.nullCount The null value count
-     * @param {DataType} options.type The data type.
-     * @param {Uint8Array} [options.validity] Validity bitmap buffer
-     * @param {Uint8Array} options.values Values buffer
-     * @param {Uint8Array[]} options.data View data buffers
-     */
-    constructor({ data, ...options }: {
-        length: number;
-        nullCount: number;
-        type: DataType;
-        validity?: Uint8Array;
-        values: Uint8Array;
-        data: Uint8Array[];
-    });
-}
-import type { DataType } from './types.js';
-import type { TypedArray } from './types.js';
-import type { OffsetArray } from './types.js';
-import type { ValueArray } from './types.js';
-import type { TypedArrayConstructor } from './types.js';
-import { fromDecimal64 } from './util/numbers.js';
-/**
- * A batch with a fixed stride.
- * @template T
- * @extends {ArrayBatch<T>}
- */
-declare class FixedBatch<T> extends ArrayBatch<T> {
-    constructor(options: any);
-    /** @type {number} */
-    stride: number;
-}
-import { objectFactory } from './util/struct.js';
-import type { Column } from './column.js';
-/**
  * @template T
  * @extends {ArrayBatch<T>}
  */
 declare class ViewBatch<T> extends ArrayBatch<T> {
+    data: Uint8Array<ArrayBufferLike>[];
     /**
      * Create a new view batch.
      * @param {object} options Batch options.
@@ -776,12 +654,32 @@ declare class ViewBatch<T> extends ArrayBatch<T> {
         values: Uint8Array;
         data: Uint8Array[];
     });
-    data: Uint8Array<ArrayBufferLike>[];
     /**
      * Get the binary data at the provided index.
      * @param {number} index The value index.
      * @returns {Uint8Array}
      */
     view(index: number): Uint8Array;
+}
+/**
+ * A batch of binary blobs from variable data buffers, returned as byte
+ * buffers of unsigned 8-bit integers.
+ * @extends {ViewBatch<Uint8Array>}
+ */
+export declare class BinaryViewBatch extends ViewBatch<Uint8Array> {
+    /**
+     * @param {number} index The value index.
+     */
+    value(index: number): Uint8Array<ArrayBufferLike>;
+}
+/**
+ * A batch of UTF-8 strings from variable data buffers.
+ * @extends {ViewBatch<string>}
+ */
+export declare class Utf8ViewBatch extends ViewBatch<string> {
+    /**
+     * @param {number} index The value index.
+     */
+    value(index: number): string;
 }
 export {};
