@@ -66,6 +66,25 @@ export function encodeIPC(data, { sink, format = STREAM, codec } = {}) {
 
   // write record batch messages
   for (const batch of records) {
+    // Dictionary batches that must precede this record batch in the stream
+    // (a replacement or delta for a dictionary the record batch references).
+    // Stream format only: the file format allows one dictionary per id.
+    for (const dict of batch?.dictionaries ?? []) {
+      if (file && !dict.isDelta) {
+        throw new Error(
+          `Dictionary replacement (id ${dict.id}) is not allowed in the Arrow IPC file format; ` +
+          'use format "stream"'
+        );
+      }
+      writeMessage(
+        builder,
+        MessageHeader.DictionaryBatch,
+        encodeDictionaryBatch(builder, dict, compression),
+        dict.data.byteLength,
+        dictBlocks
+      );
+      writeBuffers(builder, dict.data.buffers);
+    }
     // Per-record-batch custom_metadata — Arrow IPC spec field 4 of the
     // Message table. Encode the metadata BEFORE the record-batch header
     // so writeMessage can finalize the message with both offsets in
