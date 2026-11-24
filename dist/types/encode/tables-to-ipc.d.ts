@@ -15,17 +15,16 @@ import type { Sink } from './sink.js';
  * concatenation produces a stream with multiple EOS markers, which causes
  * readers to stop after the first table's batches.
  *
- * Dictionary constraint: a single set of dictionary batches is emitted up
- * front, taken from the first table that contributes data (see the
- * `dataTable` lookup below). All tables sharing a Dictionary-typed field
- * MUST therefore use the SAME dictionary values — per-table dictionary
- * deltas / replacements are NOT supported. This holds for vgi-rpc's wire
- * pattern (zero-or-more empty metadata/log batches followed by result
- * batches that share one schema and one dictionary), which is the only
- * caller. Encoding tables with divergent dictionaries would emit a stream
- * whose later batches reference dictionary ids the reader resolves to the
- * wrong values; if that ever becomes a use case, this path must emit
- * per-table dictionary batches keyed by id instead.
+ * Dictionaries: ids are assigned by field position (depth-first over the
+ * first table's schema), not by object identity, so every table maps its
+ * Dictionary fields to the same ids. Each table may carry its own dictionary
+ * values: the first table to contribute data defines each dictionary up front,
+ * and a later table whose dictionary differs emits a replacement dictionary
+ * batch immediately before its first record batch. Record batches therefore
+ * always resolve against the dictionary of the table they came from, the
+ * stream-format behaviour Apache Arrow JS's writer also has. (A table that
+ * reuses the previous table's dictionary column emits nothing new.) The file
+ * format forbids replacements, so divergent dictionaries throw there.
  *
  * @param {Table[]} tables The Arrow tables to encode (must share a schema).
  * @param {object} [options] Encoding options.
